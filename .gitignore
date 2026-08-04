@@ -1,0 +1,16 @@
+# Python and runtime artifacts
+__pycache__/
+*.py[cod]
+*.log
+*.tmp
+
+# Training artifacts: retain only the explicitly curated demonstration checkpoint.
+junq-main/checkpoints/**
+!junq-main/checkpoints/linux_reward_air_radar_sam_v1/
+!junq-main/checkpoints/linux_reward_air_radar_sam_v1/bottom_happo_recon_attack_parallel_eval_update_000005.pt
+
+# Local scratch directories and external AFSIM binaries/SDKs are intentionally excluded.
+tmp/
+AFSimSdk/
+AFSim-2.9.0-win64/
+remote_windows_git/

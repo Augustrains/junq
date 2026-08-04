@@ -1,0 +1,443 @@
+{
+    "scenario":  {
+                     "name":  "ground_shared_recon_live_test",
+                     "local_address":  [
+                                           "127.0.0.1",
+                                           50050
+                                       ],
+                     "decision_seconds":  1.8,
+                     "message_timeout_seconds":  0.2,
+                     "max_steps":  2000,
+                     "expose_retreat_to_commander":  false,
+                     "recon_actions_file":  "recon_actions.json",
+                     "recon_state_fields_file":  "recon_state_fields.json",
+                     "recon_group_size":  3,
+                     "control_mode":  "flat_always_on",
+                     "attack_group_size":  3,
+                     "warlock_path":  "D:/junq/afsim_work/afsim-2.9.0-win64_bin/bin_release/warlock.exe",
+                     "scenario_dir":  "D:/junq/afsim_work/afsim-2.9.0-win64_bin/demos/air_to_air",
+                     "scenario_file":  "scenarios/ground_shared_recon_live_test.txt",
+                     "warlock_log_path":  "D:/junq/dppo/ground_shared_recon_live_test.log",
+                     "warlock_args":  [
+                                          "-log-server-host",
+                                          "localhost",
+                                          "-log-server-port",
+                                          "18888"
+                                      ],
+                     "bounds":  {
+                                    "lat_min":  23.5,
+                                    "lat_max":  25.8,
+                                    "lon_min":  118.8,
+                                    "lon_max":  122.2
+                                },
+                     "attack_actions_file":  "attack_actions.json",
+                     "attack_state_fields_file":  "attack_state_fields.json",
+                     "landing_actions_file":  "landing_actions.json",
+                     "landing_state_fields_file":  "landing_state_fields.json",
+                     "landing_group_size":  3,
+                     "ground_actions_file":  "ground_actions.json",
+                     "ground_state_fields_file":  "../test/configs/ground_state_fields_ground_shared_recon_test.json",
+                     "ground_group_size":  3,
+                     "landing_blue_air_kills_required":  5,
+                     "landing_blue_sam_alive_max":  1,
+                     "landing_force_open_time_seconds":  10800.0,
+                     "attack_rearm_duration_seconds":  600.0,
+                     "landing_unload_duration_seconds":  900.0,
+                     "carrier_initial_aam_stock":  30,
+                     "carrier_initial_agm_stock":  50,
+                     "reward_rules_file":  "reward_rules.json",
+                     "reward_target_priorities_file":  "reward_target_priorities.json",
+                     "done_rules_file":  "done_rules.json",
+                     "commander_state_fields_file":  "commander_state_fields.json",
+                     "observation_mode":  "commander",
+                     "landing_navigation_bounds":  {
+                                                       "lat_min":  23.45,
+                                                       "lat_max":  25.55,
+                                                       "lon_min":  118.75,
+                                                       "lon_max":  122.15,
+                                                       "grid_cell_m":  2000.0
+                                                   },
+                     "landing_land_polygons":  [
+                                                   {
+                                                       "name":  "taiwan_main_island",
+                                                       "description":  "Simplified Taiwan main-island no-sail polygon. The east-coast user landing point is retained as a shoreline anchor.",
+                                                       "points":  [
+                                                                      {
+                                                                          "lat":  25.287421,
+                                                                          "lon":  121.539724
+                                                                      },
+                                                                      {
+                                                                          "lat":  25.001899,
+                                                                          "lon":  122.005382
+                                                                      },
+                                                                      {
+                                                                          "lat":  24.831732,
+                                                                          "lon":  121.814626
+                                                                      },
+                                                                      {
+                                                                          "lat":  24.644355,
+                                                                          "lon":  121.814952
+                                                                      },
+                                                                      {
+                                                                          "lat":  24.597805,
+                                                                          "lon":  121.881847
+                                                                      },
+                                                                      {
+                                                                          "lat":  24.076850,
+                                                                          "lon":  121.607432
+                                                                      },
+                                                                      {
+                                                                          "lat":  23.7150777778,
+                                                                          "lon":  121.5576833333
+                                                                      },
+                                                                      {
+                                                                          "lat":  23.145494,
+                                                                          "lon":  121.400076
+                                                                      },
+                                                                      {
+                                                                          "lat":  22.778632,
+                                                                          "lon":  121.177419
+                                                                      },
+                                                                      {
+                                                                          "lat":  22.647895,
+                                                                          "lon":  121.021007
+                                                                      },
+                                                                      {
+                                                                          "lat":  22.365953,
+                                                                          "lon":  120.886567
+                                                                      },
+                                                                      {
+                                                                          "lat":  21.904608,
+                                                                          "lon":  120.840343
+                                                                      },
+                                                                      {
+                                                                          "lat":  21.948432,
+                                                                          "lon":  120.700369
+                                                                      },
+                                                                      {
+                                                                          "lat":  22.295071,
+                                                                          "lon":  120.621267
+                                                                      },
+                                                                      {
+                                                                          "lat":  22.580064,
+                                                                          "lon":  120.285167
+                                                                      },
+                                                                      {
+                                                                          "lat":  22.525946,
+                                                                          "lon":  120.333669
+                                                                      },
+                                                                      {
+                                                                          "lat":  22.659084,
+                                                                          "lon":  120.239594
+                                                                      },
+                                                                      {
+                                                                          "lat":  23.031724,
+                                                                          "lon":  120.166189
+                                                                      },
+                                                                      {
+                                                                          "lat":  23.043687,
+                                                                          "lon":  120.055186
+                                                                      },
+                                                                      {
+                                                                          "lat":  23.361711,
+                                                                          "lon":  120.164577
+                                                                      },
+                                                                      {
+                                                                          "lat":  23.638036,
+                                                                          "lon":  120.143609
+                                                                      },
+                                                                      {
+                                                                          "lat":  24.385891,
+                                                                          "lon":  120.558116
+                                                                      },
+                                                                      {
+                                                                          "lat":  24.485725,
+                                                                          "lon":  120.652050
+                                                                      },
+                                                                      {
+                                                                          "lat":  24.607001,
+                                                                          "lon":  120.702159
+                                                                      },
+                                                                      {
+                                                                          "lat":  24.666083,
+                                                                          "lon":  120.826671
+                                                                      },
+                                                                      {
+                                                                          "lat":  24.9693111111,
+                                                                          "lon":  120.9944777778
+                                                                      },
+                                                                      {
+                                                                          "lat":  25.000678,
+                                                                          "lon":  121.005544
+                                                                      },
+                                                                      {
+                                                                          "lat":  25.111151,
+                                                                          "lon":  121.210948
+                                                                      },
+                                                                      {
+                                                                          "lat":  25.1467638889,
+                                                                          "lon":  121.2762305556
+                                                                      },
+                                                                      {
+                                                                          "lat":  25.136420,
+                                                                          "lon":  121.443207
+                                                                      },
+                                                                      {
+                                                                          "lat":  25.192125,
+                                                                          "lon":  121.399099
+                                                                      }
+                                                                  ]
+                                                   }
+                                               ],
+                     "attack_initial_target_intel":  {
+                                                         "lat":  24.9716111111,
+                                                         "lon":  121.2280972222,
+                                                         "air_alt_m":  3000,
+                                                         "surface_alt_m":  0
+                                                     }
+                 },
+    "red":  {
+                "carrier":  [
+                                "red_carrier"
+                            ],
+                "recon_aircraft":  [
+                                       "red_recon_1",
+                                       "red_recon_2",
+                                       "red_recon_3",
+                                       "red_recon_4",
+                                       "red_recon_5",
+                                       "red_recon_6",
+                                       "red_recon_7",
+                                       "red_recon_8",
+                                       "red_recon_9",
+                                       "red_recon_10"
+                                   ],
+                "attack_aircraft":  [
+                                        "red_attack_1",
+                                        "red_attack_2",
+                                        "red_attack_3",
+                                        "red_attack_4",
+                                        "red_attack_5",
+                                        "red_attack_6",
+                                        "red_attack_7",
+                                        "red_attack_8",
+                                        "red_attack_9",
+                                        "red_attack_10"
+                                    ],
+                "commandable_recon_aircraft":  [
+                                                   "red_recon_1",
+                                                   "red_recon_2",
+                                                   "red_recon_3",
+                                                   "red_recon_4",
+                                                   "red_recon_5",
+                                                   "red_recon_6",
+                                                   "red_recon_7",
+                                                   "red_recon_8",
+                                                   "red_recon_9",
+                                                   "red_recon_10"
+                                               ],
+                "fixed_recon_teams":  [
+                                          [
+                                              "red_recon_1",
+                                              "red_recon_2",
+                                              "red_recon_3"
+                                          ],
+                                          [
+                                              "red_recon_4",
+                                              "red_recon_5",
+                                              "red_recon_6"
+                                          ],
+                                          [
+                                              "red_recon_7",
+                                              "red_recon_8"
+                                          ],
+                                          [
+                                              "red_recon_9",
+                                              "red_recon_10"
+                                          ]
+                                      ],
+                "fixed_attack_teams":  [
+                                           [
+                                               "red_attack_1",
+                                               "red_attack_2",
+                                               "red_attack_3"
+                                           ],
+                                           [
+                                               "red_attack_4",
+                                               "red_attack_5",
+                                               "red_attack_6"
+                                           ],
+                                           [
+                                               "red_attack_7",
+                                               "red_attack_8"
+                                           ],
+                                           [
+                                               "red_attack_9",
+                                               "red_attack_10"
+                                           ]
+                                       ],
+                "commandable_attack_aircraft":  [
+                                                    "red_attack_1",
+                                                    "red_attack_2",
+                                                    "red_attack_3",
+                                                    "red_attack_4",
+                                                    "red_attack_5",
+                                                    "red_attack_6",
+                                                    "red_attack_7",
+                                                    "red_attack_8",
+                                                    "red_attack_9",
+                                                    "red_attack_10"
+                                                ],
+                "transports":  [
+                                   "red_transport_1",
+                                   "red_transport_2",
+                                   "red_transport_3"
+                               ],
+                "ground_forces":  [
+                                      "red_ground_1",
+                                      "red_ground_2",
+                                      "red_ground_3",
+                                      "red_ground_4",
+                                      "red_ground_5",
+                                      "red_ground_6",
+                                      "red_ground_7",
+                                      "red_ground_8",
+                                      "red_ground_9",
+                                      "red_ground_10",
+                                      "red_ground_test"
+                                  ],
+                "commandable_transports":  [
+                                               "red_transport_1",
+                                               "red_transport_2",
+                                               "red_transport_3"
+                                           ],
+                "commandable_ground_forces":  [
+                                                  "red_ground_1",
+                                                  "red_ground_2",
+                                                  "red_ground_3",
+                                                  "red_ground_4",
+                                                  "red_ground_5",
+                                                  "red_ground_6",
+                                                  "red_ground_7",
+                                                  "red_ground_8",
+                                                  "red_ground_9",
+                                                  "red_ground_10",
+                                                  "red_ground_test"
+                                              ],
+                "ground_transport_map":  {
+                                             "red_ground_1":  "red_transport_1",
+                                             "red_ground_2":  "red_transport_1",
+                                             "red_ground_3":  "red_transport_1",
+                                             "red_ground_4":  "red_transport_2",
+                                             "red_ground_5":  "red_transport_2",
+                                             "red_ground_6":  "red_transport_2",
+                                             "red_ground_7":  "red_transport_2",
+                                             "red_ground_8":  "red_transport_3",
+                                             "red_ground_9":  "red_transport_3",
+                                             "red_ground_10":  "red_transport_3"
+                                         }
+            },
+    "blue":  {
+                 "base":  [
+                              "blue_base"
+                          ],
+                 "attack_aircraft":  [
+                                         "blue_attack_1",
+                                         "blue_attack_2",
+                                         "blue_attack_3",
+                                         "blue_attack_4",
+                                         "blue_attack_5",
+                                         "blue_attack_6",
+                                         "blue_attack_7",
+                                         "blue_attack_8",
+                                         "blue_attack_9",
+                                         "blue_attack_10"
+                                     ],
+                 "ground_forces":  [
+                                       "blue_ground_1",
+                                       "blue_ground_2",
+                                       "blue_ground_3",
+                                       "blue_ground_4",
+                                       "blue_ground_5",
+                                       "blue_ground_6",
+                                       "blue_ground_7",
+                                       "blue_ground_8",
+                                       "blue_ground_9",
+                                       "blue_ground_10",
+                                       "blue_ground_11",
+                                       "blue_ground_12",
+                                       "blue_ground_13",
+                                       "blue_ground_14",
+                                       "blue_ground_15",
+                                       "blue_ground_16",
+                                       "blue_ground_17",
+                                       "blue_ground_18",
+                                       "blue_ground_19",
+                                       "blue_ground_20"
+                                   ],
+                 "radars":  [
+                                "blue_radar_1",
+                                "blue_radar_2",
+                                "blue_radar_3"
+                            ],
+                 "sams":  [
+                              "blue_sam_1",
+                              "blue_sam_2",
+                              "blue_sam_3",
+                              "blue_sam_4",
+                              "blue_sam_5"
+                          ]
+             },
+    "landing_zones":  [
+                          {
+                              "wait_lat":  25,
+                              "name":  "north_landing",
+                              "lon":  121.2762305556,
+                              "lat":  25.1467638889,
+                              "berth_lon":  121.2752381903,
+                              "berth_lat":  25.1467638889,
+                              "wait_lon":  120,
+                              "radius_m":  2500,
+                              "arrival_tolerance_m":  200,
+                              "unload_radius_m":  350,
+                              "near_maneuver_distance_m":  2000,
+                              "near_step_m":  250
+                          },
+                          {
+                              "wait_lat":  25,
+                              "name":  "central_landing",
+                              "lon":  120.9944777778,
+                              "lat":  24.9693111111,
+                              "berth_lon":  120.9934874221,
+                              "berth_lat":  24.9693416728,
+                              "wait_lon":  120,
+                              "radius_m":  2500,
+                              "arrival_tolerance_m":  200,
+                              "unload_radius_m":  350,
+                              "near_maneuver_distance_m":  2000,
+                              "near_step_m":  250
+                          },
+                          {
+                              "wait_lat":  25,
+                              "name":  "south_landing",
+                              "lon":  120.65205,
+                              "lat":  24.485725,
+                              "berth_lon":  120.6513040634,
+                              "berth_lat":  24.4863133239,
+                              "wait_lon":  120,
+                              "radius_m":  2500,
+                              "arrival_tolerance_m":  200,
+                              "unload_radius_m":  350,
+                              "near_maneuver_distance_m":  2000,
+                              "near_step_m":  250
+                          }
+                      ],
+    "ground_objectives":  [
+                              {
+                                  "name":  "blue_base",
+                                  "lat":  24.9716111111,
+                                  "lon":  121.2280972222,
+                                  "radius_m":  100.0
+                              }
+                          ]
+}

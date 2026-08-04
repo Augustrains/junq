@@ -1,0 +1,57 @@
+{
+  "commander": [
+    "time.step_count",
+    "time.progress",
+    "red.recon.available_count",
+    "red.attack.available_count",
+    "red.transport.available_count",
+    "red.ground.available_count",
+    "known_blue.aircraft.count",
+    "known_blue.ground.count",
+    "known_blue.radar.count",
+    "known_blue.sam.count",
+    "task.landing_executed",
+    "task.ground_landed",
+    "objective.capture_progress"
+  ],
+  "recon": [
+    "time.step_count",
+    "own.recon_aircraft.units",
+    "objective.recon_areas",
+    "known_blue.aircraft.units",
+    "known_blue.radar.units",
+    "known_blue.sam.units",
+    "home.carrier.position",
+    "task.current_recon"
+  ],
+  "attack": [
+    "time.step_count",
+    "own.attack_aircraft.units",
+    "known_blue.targets",
+    "known_blue.aircraft.units",
+    "known_blue.ground.units",
+    "known_blue.radar.units",
+    "known_blue.sam.units",
+    "home.carrier.position",
+    "task.current_attack"
+  ],
+  "landing": [
+    "time.step_count",
+    "own.transports.units",
+    "objective.landing_zones",
+    "known_blue.ground.units",
+    "known_blue.radar.units",
+    "known_blue.sam.units",
+    "task.landing_executed",
+    "task.ground_landed"
+  ],
+  "ground": [
+    "time.step_count",
+    "own.ground_forces.units",
+    "objective.ground_objectives",
+    "known_blue.ground.units",
+    "known_blue.aircraft.units",
+    "task.ground_landed",
+    "objective.capture_progress"
+  ]
+}

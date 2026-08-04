@@ -1,0 +1,1131 @@
+{
+    "description":  "Reward-only enemy target priorities for fixed reconnaissance and attack teams. These targets never alter observations, action masks, or command execution.",
+    "movement_reward_scale":  1,
+    "recon_detected_priority_delta":  -1000,
+    "teams":  {
+                  "recon":  {
+                                "recon_fixed_team_1":  {
+                                                           "description":  "首先要发现敌方雷达2，然后发现sam2，然后sam3，然后是敌方的10个攻击飞机。",
+                                                           "targets":  [
+                                                                           {
+                                                                               "target":  "blue_radar_2",
+                                                                               "priority":  130
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_sam_2",
+                                                                               "priority":  120
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_sam_3",
+                                                                               "priority":  110
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_1",
+                                                                               "priority":  100
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_2",
+                                                                               "priority":  90
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_3",
+                                                                               "priority":  80
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_4",
+                                                                               "priority":  70
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_5",
+                                                                               "priority":  60
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_6",
+                                                                               "priority":  50
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_7",
+                                                                               "priority":  40
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_8",
+                                                                               "priority":  30
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_9",
+                                                                               "priority":  20
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_10",
+                                                                               "priority":  10
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_1",
+                                                                               "priority":  9
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_2",
+                                                                               "priority":  8
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_3",
+                                                                               "priority":  7
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_4",
+                                                                               "priority":  6
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_5",
+                                                                               "priority":  5
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_6",
+                                                                               "priority":  4
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_7",
+                                                                               "priority":  3
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_8",
+                                                                               "priority":  2
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_9",
+                                                                               "priority":  1
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_10",
+                                                                               "priority":  0
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_11",
+                                                                               "priority":  -1
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_12",
+                                                                               "priority":  -2
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_13",
+                                                                               "priority":  -3
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_14",
+                                                                               "priority":  -4
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_15",
+                                                                               "priority":  -5
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_16",
+                                                                               "priority":  -6
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_17",
+                                                                               "priority":  -7
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_18",
+                                                                               "priority":  -8
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_19",
+                                                                               "priority":  -9
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_20",
+                                                                               "priority":  -10
+                                                                           }
+                                                                       ]
+                                                       },
+                                "recon_fixed_team_2":  {
+                                                           "description":  "优先radar1，然后sam1，然后sam4，然后飞机，最后陆军",
+                                                           "targets":  [
+                                                                           {
+                                                                               "target":  "blue_radar_1",
+                                                                               "priority":  130
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_sam_1",
+                                                                               "priority":  120
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_sam_4",
+                                                                               "priority":  110
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_1",
+                                                                               "priority":  100
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_2",
+                                                                               "priority":  90
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_3",
+                                                                               "priority":  80
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_4",
+                                                                               "priority":  70
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_5",
+                                                                               "priority":  60
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_6",
+                                                                               "priority":  50
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_7",
+                                                                               "priority":  40
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_8",
+                                                                               "priority":  30
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_9",
+                                                                               "priority":  20
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_10",
+                                                                               "priority":  10
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_1",
+                                                                               "priority":  9
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_2",
+                                                                               "priority":  8
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_3",
+                                                                               "priority":  7
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_4",
+                                                                               "priority":  6
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_5",
+                                                                               "priority":  5
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_6",
+                                                                               "priority":  4
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_7",
+                                                                               "priority":  3
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_8",
+                                                                               "priority":  2
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_9",
+                                                                               "priority":  1
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_10",
+                                                                               "priority":  0
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_11",
+                                                                               "priority":  -1
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_12",
+                                                                               "priority":  -2
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_13",
+                                                                               "priority":  -3
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_14",
+                                                                               "priority":  -4
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_15",
+                                                                               "priority":  -5
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_16",
+                                                                               "priority":  -6
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_17",
+                                                                               "priority":  -7
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_18",
+                                                                               "priority":  -8
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_19",
+                                                                               "priority":  -9
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_20",
+                                                                               "priority":  -10
+                                                                           }
+                                                                       ]
+                                                       },
+                                "recon_fixed_team_3":  {
+                                                           "description":  "ground7，然后ground5，然后ground3，然后ground1，radar1，ground9，ground8，ground10，ground11，ground4，sam1，ground12，然后是所有飞机，最后是剩余的单位",
+                                                           "targets":  [
+                                                                           {
+                                                                               "target":  "blue_ground_7",
+                                                                               "priority":  390
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_5",
+                                                                               "priority":  380
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_3",
+                                                                               "priority":  370
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_1",
+                                                                               "priority":  360
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_radar_1",
+                                                                               "priority":  350
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_9",
+                                                                               "priority":  340
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_8",
+                                                                               "priority":  330
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_10",
+                                                                               "priority":  320
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_11",
+                                                                               "priority":  310
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_4",
+                                                                               "priority":  300
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_sam_1",
+                                                                               "priority":  290
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_12",
+                                                                               "priority":  280
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_1",
+                                                                               "priority":  270
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_2",
+                                                                               "priority":  260
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_3",
+                                                                               "priority":  250
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_4",
+                                                                               "priority":  240
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_5",
+                                                                               "priority":  230
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_6",
+                                                                               "priority":  220
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_7",
+                                                                               "priority":  210
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_8",
+                                                                               "priority":  200
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_9",
+                                                                               "priority":  190
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_10",
+                                                                               "priority":  180
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_radar_2",
+                                                                               "priority":  170
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_radar_3",
+                                                                               "priority":  160
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_sam_2",
+                                                                               "priority":  150
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_sam_3",
+                                                                               "priority":  140
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_sam_4",
+                                                                               "priority":  130
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_sam_5",
+                                                                               "priority":  120
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_2",
+                                                                               "priority":  110
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_6",
+                                                                               "priority":  100
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_13",
+                                                                               "priority":  90
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_14",
+                                                                               "priority":  80
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_15",
+                                                                               "priority":  70
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_16",
+                                                                               "priority":  60
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_17",
+                                                                               "priority":  50
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_18",
+                                                                               "priority":  40
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_19",
+                                                                               "priority":  30
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_20",
+                                                                               "priority":  20
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_base",
+                                                                               "priority":  10
+                                                                           }
+                                                                       ]
+                                                       },
+                                "recon_fixed_team_4":  {
+                                                           "description":  "优先radar1，然后沿海的陆军，然后sam1和sam2，然后攻击飞机，最后考里面的其余单位",
+                                                           "targets":  [
+                                                                           {
+                                                                               "target":  "blue_radar_1",
+                                                                               "priority":  390
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_4",
+                                                                               "priority":  380
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_12",
+                                                                               "priority":  370
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_17",
+                                                                               "priority":  360
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_20",
+                                                                               "priority":  350
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_sam_1",
+                                                                               "priority":  340
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_sam_2",
+                                                                               "priority":  330
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_1",
+                                                                               "priority":  320
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_2",
+                                                                               "priority":  310
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_3",
+                                                                               "priority":  300
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_4",
+                                                                               "priority":  290
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_5",
+                                                                               "priority":  280
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_6",
+                                                                               "priority":  270
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_7",
+                                                                               "priority":  260
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_8",
+                                                                               "priority":  250
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_9",
+                                                                               "priority":  240
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_10",
+                                                                               "priority":  230
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_radar_2",
+                                                                               "priority":  220
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_radar_3",
+                                                                               "priority":  210
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_sam_3",
+                                                                               "priority":  200
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_sam_4",
+                                                                               "priority":  190
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_sam_5",
+                                                                               "priority":  180
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_1",
+                                                                               "priority":  170
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_2",
+                                                                               "priority":  160
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_3",
+                                                                               "priority":  150
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_5",
+                                                                               "priority":  140
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_6",
+                                                                               "priority":  130
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_7",
+                                                                               "priority":  120
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_8",
+                                                                               "priority":  110
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_9",
+                                                                               "priority":  100
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_10",
+                                                                               "priority":  90
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_11",
+                                                                               "priority":  80
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_13",
+                                                                               "priority":  70
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_14",
+                                                                               "priority":  60
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_15",
+                                                                               "priority":  50
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_16",
+                                                                               "priority":  40
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_18",
+                                                                               "priority":  30
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_19",
+                                                                               "priority":  20
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_base",
+                                                                               "priority":  10
+                                                                           }
+                                                                       ]
+                                                       }
+                            },
+                  "attack":  {
+                                 "attack_fixed_team_1":  {
+                                                             "description":  "优先blue_sam2,radar2,sam3 然后所有飞机，然后陆军",
+                                                             "targets":  [
+                                                                           {
+                                                                               "target":  "blue_sam_2",
+                                                                               "priority":  330
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_radar_2",
+                                                                               "priority":  320
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_sam_3",
+                                                                               "priority":  310
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_1",
+                                                                               "priority":  300
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_2",
+                                                                               "priority":  290
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_3",
+                                                                               "priority":  280
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_4",
+                                                                               "priority":  270
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_5",
+                                                                               "priority":  260
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_6",
+                                                                               "priority":  250
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_7",
+                                                                               "priority":  240
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_8",
+                                                                               "priority":  230
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_9",
+                                                                               "priority":  220
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_10",
+                                                                               "priority":  210
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_1",
+                                                                               "priority":  200
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_2",
+                                                                               "priority":  190
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_3",
+                                                                               "priority":  180
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_4",
+                                                                               "priority":  170
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_5",
+                                                                               "priority":  160
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_6",
+                                                                               "priority":  150
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_7",
+                                                                               "priority":  140
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_8",
+                                                                               "priority":  130
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_9",
+                                                                               "priority":  120
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_10",
+                                                                               "priority":  110
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_11",
+                                                                               "priority":  100
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_12",
+                                                                               "priority":  90
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_13",
+                                                                               "priority":  80
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_14",
+                                                                               "priority":  70
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_15",
+                                                                               "priority":  60
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_16",
+                                                                               "priority":  50
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_17",
+                                                                               "priority":  40
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_18",
+                                                                               "priority":  30
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_19",
+                                                                               "priority":  20
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_20",
+                                                                               "priority":  10
+                                                                           }
+                                                                       ]
+                                                         },
+                                 "attack_fixed_team_2":  {
+                                                             "description":  "优先radar1，sam1，sam4，然后所有飞机，然后陆军先沿海再陆地这么排序",
+                                                             "targets":  [
+                                                                           {
+                                                                               "target":  "blue_radar_1",
+                                                                               "priority":  330
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_sam_1",
+                                                                               "priority":  320
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_sam_4",
+                                                                               "priority":  310
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_1",
+                                                                               "priority":  300
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_2",
+                                                                               "priority":  290
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_3",
+                                                                               "priority":  280
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_4",
+                                                                               "priority":  270
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_5",
+                                                                               "priority":  260
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_6",
+                                                                               "priority":  250
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_7",
+                                                                               "priority":  240
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_8",
+                                                                               "priority":  230
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_9",
+                                                                               "priority":  220
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_10",
+                                                                               "priority":  210
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_1",
+                                                                               "priority":  200
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_2",
+                                                                               "priority":  190
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_3",
+                                                                               "priority":  180
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_4",
+                                                                               "priority":  170
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_5",
+                                                                               "priority":  160
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_7",
+                                                                               "priority":  150
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_8",
+                                                                               "priority":  140
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_9",
+                                                                               "priority":  130
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_10",
+                                                                               "priority":  120
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_11",
+                                                                               "priority":  110
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_12",
+                                                                               "priority":  100
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_13",
+                                                                               "priority":  90
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_14",
+                                                                               "priority":  80
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_15",
+                                                                               "priority":  70
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_16",
+                                                                               "priority":  60
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_6",
+                                                                               "priority":  50
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_17",
+                                                                               "priority":  40
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_18",
+                                                                               "priority":  30
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_19",
+                                                                               "priority":  20
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_20",
+                                                                               "priority":  10
+                                                                           }
+                                                                       ]
+                                                         },
+                                 "attack_fixed_team_3":  {
+                                                             "description":  "优先十个飞机，然后沿海到内地的陆军，最后地面单位",
+                                                             "targets":  [
+                                                                           {
+                                                                               "target":  "blue_attack_1",
+                                                                               "priority":  300
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_2",
+                                                                               "priority":  290
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_3",
+                                                                               "priority":  280
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_4",
+                                                                               "priority":  270
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_5",
+                                                                               "priority":  260
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_6",
+                                                                               "priority":  250
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_7",
+                                                                               "priority":  240
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_8",
+                                                                               "priority":  230
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_9",
+                                                                               "priority":  220
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_10",
+                                                                               "priority":  210
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_5",
+                                                                               "priority":  200
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_7",
+                                                                               "priority":  190
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_13",
+                                                                               "priority":  180
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_14",
+                                                                               "priority":  170
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_3",
+                                                                               "priority":  160
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_15",
+                                                                               "priority":  150
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_9",
+                                                                               "priority":  140
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_8",
+                                                                               "priority":  130
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_11",
+                                                                               "priority":  120
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_1",
+                                                                               "priority":  110
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_16",
+                                                                               "priority":  100
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_2",
+                                                                               "priority":  90
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_4",
+                                                                               "priority":  80
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_10",
+                                                                               "priority":  70
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_12",
+                                                                               "priority":  60
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_6",
+                                                                               "priority":  50
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_19",
+                                                                               "priority":  40
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_18",
+                                                                               "priority":  30
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_20",
+                                                                               "priority":  20
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_17",
+                                                                               "priority":  10
+                                                                           }
+                                                                       ]
+                                                         },
+                                 "attack_fixed_team_4":  {
+                                                             "description":  "优先十个飞机，但是顺序从后往前，然后沿海到内地的陆军，最后地面单位",
+                                                             "targets":  [
+                                                                           {
+                                                                               "target":  "blue_attack_10",
+                                                                               "priority":  300
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_9",
+                                                                               "priority":  290
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_8",
+                                                                               "priority":  280
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_7",
+                                                                               "priority":  270
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_6",
+                                                                               "priority":  260
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_5",
+                                                                               "priority":  250
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_4",
+                                                                               "priority":  240
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_3",
+                                                                               "priority":  230
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_2",
+                                                                               "priority":  220
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_attack_1",
+                                                                               "priority":  210
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_5",
+                                                                               "priority":  200
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_7",
+                                                                               "priority":  190
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_13",
+                                                                               "priority":  180
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_14",
+                                                                               "priority":  170
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_3",
+                                                                               "priority":  160
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_15",
+                                                                               "priority":  150
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_9",
+                                                                               "priority":  140
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_8",
+                                                                               "priority":  130
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_11",
+                                                                               "priority":  120
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_1",
+                                                                               "priority":  110
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_16",
+                                                                               "priority":  100
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_2",
+                                                                               "priority":  90
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_4",
+                                                                               "priority":  80
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_10",
+                                                                               "priority":  70
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_12",
+                                                                               "priority":  60
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_6",
+                                                                               "priority":  50
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_19",
+                                                                               "priority":  40
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_18",
+                                                                               "priority":  30
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_20",
+                                                                               "priority":  20
+                                                                           },
+                                                                           {
+                                                                               "target":  "blue_ground_17",
+                                                                               "priority":  10
+                                                                           }
+                                                                       ]
+                                                         }
+                             }
+              }
+}

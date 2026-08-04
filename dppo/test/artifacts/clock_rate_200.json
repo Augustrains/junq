@@ -1,0 +1,19 @@
+{
+  "requested_clock_rate": 200.0,
+  "requested_decisions_per_sim_hour": 50.0,
+  "requested_step_sim_seconds": 72.0,
+  "requested_step_wall_seconds": 0.36,
+  "steps": 50,
+  "sim_elapsed_seconds": 315.95030425958566,
+  "target_sim_elapsed_seconds": 3600.0,
+  "wall_elapsed_seconds": 18.02781380000306,
+  "effective_clock_rate": 17.52571375346311,
+  "effective_decisions_per_sim_hour": 569.7098485846416,
+  "mean_step_sim_seconds": 6.319006085191713,
+  "p95_step_sim_seconds": 8.12669683261322,
+  "max_step_sim_seconds": 8.267722473519882,
+  "mean_step_wall_seconds": 0.3603008939998108,
+  "steps_with_sim_progress": 50,
+  "steps_with_platform_updates": 50,
+  "passed": false
+}

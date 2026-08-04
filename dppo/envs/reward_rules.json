@@ -1,0 +1,43 @@
+{
+  "description": "团队全局奖励：仅保留负反馈（防止坏行为）和关键里程碑（登陆窗口、占领条件）。",
+  "negative_rewards_enabled": false,
+  "event_rewards": {
+    "recon_task_detection": 0.0,
+    "maintained_detection": 0.0,
+    "new_detection": 1.0,
+    "wait": -0.01,
+    "invalid_action": -2.0,
+    "udp_not_ready": -2.0,
+    "task_rejected": -1.0,
+    "platform_not_ready": -1.0,
+    "attack_unknown_target": -1.0,
+    "attack_target_not_known": -1.0,
+    "ground_action_masked": -1.0,
+    "landing_action_masked": -1.0,
+    "retreat_not_ready": -1.0,
+    "attack_failed": -1.0
+  },
+  "attack_result_rewards": {
+    "NO_ENEMY": -1.0,
+    "NO_COMPATIBLE_WEAPON": -1.0,
+    "AMMO_EMPTY": -1.0
+  },
+  "delta_rewards": {
+    "landing_window_opened": 25.0,
+    "capture_condition_reached": 50.0
+  },
+  "combat_positive_rewards": {
+    "description": "Positive-only, target-value-aware combat shaping. Damage uses the fraction of target maximum HP lost; destruction is additional.",
+    "recon_contributor_fraction": 0.2,
+    "by_target_role": {
+      "radar": {"damage_per_full_hp": 10.0, "destroyed": 10.0},
+      "sam": {"damage_per_full_hp": 8.0, "destroyed": 8.0},
+      "attack_aircraft": {"damage_per_full_hp": 6.0, "destroyed": 6.0},
+      "ground_force": {"damage_per_full_hp": 2.0, "destroyed": 2.0}
+    }
+  },
+  "limits": {
+    "min_reward": -100.0,
+    "max_reward": 100.0
+  }
+}

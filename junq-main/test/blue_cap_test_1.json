@@ -1,0 +1,8 @@
+{
+  "extends": "../envs/afsim_units.json",
+  "scenario": {
+    "name": "island_assault_cap_test_1",
+    "scenario_file": "scenarios/island_assault_cap_test_1.txt",
+    "warlock_log_path": "D:/junq/junq-main/show/warlock_demo.log"
+  }
+}

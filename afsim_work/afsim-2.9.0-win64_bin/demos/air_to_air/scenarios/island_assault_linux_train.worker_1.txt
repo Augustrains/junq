@@ -1,0 +1,3745 @@
+include_once ../weapons/aam/medium_range_radar_missile.txt
+include_once ../../alternate_locations/weapons/agm/blue_gps_bomb_1.txt
+
+#udpnet
+#   port 50050
+#   address 10.184.17.177
+#   recon_range 100000
+#end_udpnet
+
+// Linux training receiver: guzechen@amax (10.184.17.133)
+udpnet
+   port 50051
+   address 10.184.17.133
+   decision_pause_interval 72 sec
+   state_update_interval 5 sec
+   recon_range 100000
+end_udpnet
+# Accelerated training: advance 15 simulation seconds per wall-clock second.
+clock_rate 60
+realtime
+script_variables
+   global FileIO RED_ATTACK_TRACE_FILE = FileIO();
+   global bool RED_ATTACK_TRACE_READY = false;
+   global FileIO BLUE_CAP_TRACE_FILE = FileIO();
+   global bool BLUE_CAP_TRACE_READY = false;
+   global bool BLUE_OFFENSIVE_ACTIONS_ENABLED = true;
+   global Array<string> PENDING_DESTROYED_NAMES = Array<string>();
+   global Array<double> PENDING_DESTROYED_TIMES = Array<double>();
+end_script_variables
+
+on_initialize
+   BLUE_CAP_TRACE_READY = BLUE_CAP_TRACE_FILE.Open("blue_cap_trace.log", "out");
+   if (BLUE_CAP_TRACE_READY) { BLUE_CAP_TRACE_FILE.Writeln("event,time,fighter,detail" ); }
+      RED_ATTACK_TRACE_READY = RED_ATTACK_TRACE_FILE.Open("red_attack_trace.log", "out");
+   if (RED_ATTACK_TRACE_READY)
+   {
+      RED_ATTACK_TRACE_FILE.Writeln("event,time,attacker,task,status,target,range_m,altitude_m,ammo,fired,detail");
+   }
+end_on_initialize
+
+script void TraceRedAttack(string line)
+   if (RED_ATTACK_TRACE_READY)
+   {
+      RED_ATTACK_TRACE_FILE.Writeln(line);
+   }
+end_script
+
+script void TraceBlueCap(string line)
+   if (BLUE_CAP_TRACE_READY) { BLUE_CAP_TRACE_FILE.Writeln(line); }
+end_script
+script void IslandWeaponFired(WsfWeaponEngagement aEngagement, WsfTrack aTargetTrack)
+   string firedTargetName = aEngagement.TargetPlatformName();
+   if (firedTargetName == "" && aTargetTrack.IsValid())
+   {
+      firedTargetName = aTargetTrack.TargetName();
+   }
+   WsfPlatform firingPlatform = WsfSimulation.FindPlatform(aEngagement.FiringPlatformName());
+   if (firedTargetName == "" && firingPlatform != null)
+   {
+      if (firingPlatform.AuxDataExists("RED_ATTACK_TARGET_NAME"))
+      {
+         firedTargetName = firingPlatform.AuxDataString("RED_ATTACK_TARGET_NAME");
+      }
+      if (firedTargetName == "" && firingPlatform.AuxDataExists("BLUE_INTERCEPT_TARGET"))
+      {
+         firedTargetName = firingPlatform.AuxDataString("BLUE_INTERCEPT_TARGET");
+      }
+      if (firedTargetName == "" && firingPlatform.AuxDataExists("BLUE_GROUND_ATTACK_TARGET"))
+      {
+         firedTargetName = firingPlatform.AuxDataString("BLUE_GROUND_ATTACK_TARGET");
+      }
+      if (firedTargetName == "" && firingPlatform.AuxDataExists("TARGET_NAME"))
+      {
+         firedTargetName = firingPlatform.AuxDataString("TARGET_NAME");
+      }
+   }
+   TraceRedAttack(write_str("WEAPON_FIRED,", TIME_NOW, ",", aEngagement.FiringPlatformName(), ",",
+                            aEngagement.WeaponSystemName(), ",observer,", firedTargetName, ",-1,-1,-1,true,",
+                            aEngagement.WeaponPlatformName()));
+   if (firingPlatform != null)
+   {
+      firingPlatform.SetAuxData("LAST_WEAPON_PLATFORM_NAME", aEngagement.WeaponPlatformName());
+   }
+end_script
+
+
+script double CombatHitProbability(string weaponName, WsfPlatform target)
+   if (weaponName == "fox3" || weaponName == "sam") { return 0.50; }
+   if (weaponName == "agm") { return 0.80; }
+   if (weaponName == "ground_fire") { return 1.00; }
+   return 0.0;
+end_script
+
+script string CombatFireLogTag(string shooterName)
+   if (shooterName.StartsWith("red_")) { return "[RED_FIRE]"; }
+   if (shooterName.StartsWith("blue_")) { return "[BLUE_FIRE]"; }
+   return "[FIRE]";
+end_script
+
+script void ApplyCombatDamage(string shooterName, string weaponName, WsfPlatform target)
+   if (target == null || !target.AuxDataExists("MAX_HP")) { return; }
+   double currentHp = target.AuxDataDouble("CURRENT_HP");
+   if (target.AuxDataExists("IS_INDESTRUCTIBLE") && target.AuxDataBool("IS_INDESTRUCTIBLE"))
+   {
+      writeln(CombatFireLogTag(shooterName), " T=", TIME_NOW,
+              " shooter=", shooterName,
+              " target=", target.Name(),
+              " weapon=", weaponName,
+              " probability=0 roll=-1 result=IMMUNE hp_remaining=", currentHp);
+      return;
+   }
+   double probability = CombatHitProbability(weaponName, target);
+   double roll = MATH.RandomUniform();
+   if (roll > probability)
+   {
+      writeln(CombatFireLogTag(shooterName), " T=", TIME_NOW,
+              " shooter=", shooterName,
+              " target=", target.Name(),
+              " weapon=", weaponName,
+              " probability=", probability,
+              " roll=", roll,
+              " result=PROBABILITY_MISS hp_remaining=", currentHp);
+      return;
+   }
+   double newHp = MATH.Max(0.0, currentHp - 1.0);
+   target.SetAuxData("CURRENT_HP", newHp);
+   target.SetAuxData("LAST_DAMAGE_TIME", TIME_NOW);
+   string result = "HIT";
+   if (newHp <= 0.0) { result = "DESTROYED"; }
+   writeln(CombatFireLogTag(shooterName), " T=", TIME_NOW,
+           " shooter=", shooterName,
+           " target=", target.Name(),
+           " weapon=", weaponName,
+           " probability=", probability,
+           " roll=", roll,
+           " result=", result,
+           " hp_remaining=", newHp);
+
+end_script
+
+script void IslandWeaponHit(WsfWeaponEngagement aEngagement, WsfPlatform aTargetPlatform)
+   TraceRedAttack(write_str("WEAPON_HIT,", TIME_NOW, ",", aEngagement.FiringPlatformName(), ",",
+                            aEngagement.WeaponSystemName(), ",observer,", aTargetPlatform.Name(), ",",
+                            aEngagement.MissDistance(aTargetPlatform), ",-1,-1,true,", aEngagement.ExtendedResult()));
+   WsfPlatform resolvedWeapon = WsfSimulation.FindPlatform(aEngagement.WeaponPlatformName());
+   if (aEngagement.WeaponSystemName() != "ground_fire")
+   {
+      if (resolvedWeapon != null)
+      {
+         resolvedWeapon.SetAuxData("SCRIPT_CONTACT_RESOLVED", true);
+         resolvedWeapon.SetAuxData("SCRIPT_RESOLUTION_LOGGED", true);
+      }
+      if (aTargetPlatform != null)
+      {
+         aTargetPlatform.SetAuxData("AIR_WEAPON_RESOLVED_TIME", TIME_NOW);
+         ApplyCombatDamage(aEngagement.FiringPlatformName(), aEngagement.WeaponSystemName(), aTargetPlatform);
+      }
+   }
+end_script
+
+script void IslandWeaponMissed(WsfWeaponEngagement aEngagement, WsfPlatform aTargetPlatform)
+   TraceRedAttack(write_str("WEAPON_MISSED,", TIME_NOW, ",", aEngagement.FiringPlatformName(), ",",
+                            aEngagement.WeaponSystemName(), ",observer,", aTargetPlatform.Name(), ",",
+                            aEngagement.MissDistance(aTargetPlatform), ",-1,-1,false,", aEngagement.ExtendedResult()));
+   WsfPlatform resolvedWeapon = WsfSimulation.FindPlatform(aEngagement.WeaponPlatformName());
+   if (aEngagement.WeaponSystemName() != "ground_fire")
+   {
+      if (resolvedWeapon != null)
+      {
+         resolvedWeapon.SetAuxData("SCRIPT_CONTACT_RESOLVED", true);
+         resolvedWeapon.SetAuxData("SCRIPT_RESOLUTION_LOGGED", true);
+      }
+      if (aTargetPlatform != null)
+      {
+         aTargetPlatform.SetAuxData("AIR_WEAPON_RESOLVED_TIME", TIME_NOW);
+         double hpRemaining = -1.0;
+         if (aTargetPlatform.AuxDataExists("CURRENT_HP"))
+         {
+            hpRemaining = aTargetPlatform.AuxDataDouble("CURRENT_HP");
+         }
+         writeln(CombatFireLogTag(aEngagement.FiringPlatformName()), " T=", TIME_NOW,
+                 " shooter=", aEngagement.FiringPlatformName(),
+                 " target=", aTargetPlatform.Name(),
+                 " weapon=", aEngagement.WeaponSystemName(),
+                 " probability=-1 roll=-1 result=PHYSICAL_MISS hp_remaining=", hpRemaining);
+      }
+   }
+end_script
+end_time 3.01 hr
+script_variables
+   Array<string> GROUND_PENDING_SHOOTERS = Array<string>();
+   Array<string> GROUND_PENDING_TARGETS = Array<string>();
+   Array<double> GROUND_PENDING_HIT_TIMES = Array<double>();
+   Array<string> AIR_PENDING_SHOOTERS = Array<string>();
+   Array<string> AIR_PENDING_TARGETS = Array<string>();
+   Array<string> AIR_PENDING_WEAPONS = Array<string>();
+   Array<string> AIR_PENDING_PLATFORM_NAMES = Array<string>();
+   Array<double> AIR_PENDING_HIT_TIMES = Array<double>();
+   Array<double> AIR_PENDING_LAUNCH_TIMES = Array<double>();
+   Array<double> AIR_PENDING_START_LATS = Array<double>();
+   Array<double> AIR_PENDING_START_LONS = Array<double>();
+   Array<double> AIR_PENDING_AIM_LATS = Array<double>();
+   Array<double> AIR_PENDING_AIM_LONS = Array<double>();
+   double AIR_MISSILE_LETHAL_RADIUS_M = 3000;
+   double CAPTURE_RADIUS_M = 100;
+   double CAPTURE_HOLD_SEC = 60;
+   double MISSION_END_TIME_SEC = 21600;
+   double FINAL_SCORE_RADIUS_M = 1000;
+   double FINAL_SCORE_MAX_HP = 50;
+   double CAPTURE_HOLD_START = -1;
+   string CAPTURE_STATE = "NONE";
+   bool SCENARIO_ENDED = false;
+   Array<string> RED_AIR_TARGET_NAMES = {"red_recon_1", "red_recon_2", "red_recon_3", "red_recon_4", "red_recon_5", "red_recon_6", "red_recon_7", "red_recon_8", "red_recon_9", "red_recon_10", "red_attack_1", "red_attack_2", "red_attack_3", "red_attack_4", "red_attack_5", "red_attack_6", "red_attack_7", "red_attack_8", "red_attack_9", "red_attack_10"};
+   Array<string> RED_GROUND_NAMES = {"red_ground_1", "red_ground_2", "red_ground_3", "red_ground_4", "red_ground_5", "red_ground_6", "red_ground_7", "red_ground_8", "red_ground_9", "red_ground_10"};
+   Array<string> BLUE_AIR_TARGET_NAMES = {"blue_attack_1", "blue_attack_2", "blue_attack_3", "blue_attack_4", "blue_attack_5", "blue_attack_6", "blue_attack_7", "blue_attack_8", "blue_attack_9", "blue_attack_10"};
+   Array<string> BLUE_RADAR_NAMES = {"blue_radar_1", "blue_radar_2", "blue_radar_3"};
+   Array<string> BLUE_SAM_NAMES = {"blue_sam_1", "blue_sam_2", "blue_sam_3", "blue_sam_4", "blue_sam_5"};
+   Array<string> BLUE_GROUND_NAMES = {"blue_ground_1", "blue_ground_2", "blue_ground_3", "blue_ground_4", "blue_ground_5", "blue_ground_6", "blue_ground_7", "blue_ground_8", "blue_ground_9", "blue_ground_10", "blue_ground_11", "blue_ground_12", "blue_ground_13", "blue_ground_14", "blue_ground_15", "blue_ground_16", "blue_ground_17", "blue_ground_18", "blue_ground_19", "blue_ground_20"};
+   double RED_TRANSPORT_SPEED_MPS = 13.888889;
+   double RED_GROUND_SPEED_MPS = 4.166667;
+   double RED_GROUND_DETECT_HOLD_SEC = 15.0;
+end_script_variables
+
+script bool IsBlueCapSlotOccupied(string slotName, string excludedName)
+   for (int fighterIndex = 0; fighterIndex < BLUE_AIR_TARGET_NAMES.Size(); fighterIndex = fighterIndex + 1)
+   {
+      WsfPlatform fighter = WsfSimulation.FindPlatform(BLUE_AIR_TARGET_NAMES[fighterIndex]);
+      if (fighter != null && fighter.Name() != excludedName && fighter.DamageFactor() < 1.0 &&
+          fighter.AuxDataExists("TASK_STATUS") && fighter.AuxDataString("TASK_STATUS") == "BLUE_CAP_PATROL" &&
+          fighter.AuxDataExists("BLUE_CAP_SLOT") && fighter.AuxDataString("BLUE_CAP_SLOT") == slotName)
+      {
+         return true;
+      }
+   }
+   return false;
+end_script
+
+script string NextBlueCapSlot(string excludedName)
+   if (!IsBlueCapSlotOccupied("north", excludedName)) { return "north"; }
+   if (!IsBlueCapSlotOccupied("south", excludedName)) { return "south"; }
+   if (!IsBlueCapSlotOccupied("east_north", excludedName)) { return "east_north"; }
+   if (!IsBlueCapSlotOccupied("east_south", excludedName)) { return "east_south"; }
+   return "";
+end_script
+
+script void ConfigureBlueCapSlot(WsfPlatform fighter, string slotName)
+   fighter.SetAuxData("BLUE_CAP_SLOT", slotName);
+   fighter.SetAuxData("BLUE_CAP_INDEX", 1);
+   if (slotName == "north")
+   {
+      fighter.SetAuxData("BLUE_CAP_POINT_1", "25:12:00.000n 120:55:00.000e 3000m");
+      fighter.SetAuxData("BLUE_CAP_POINT_2", "24:58:00.000n 121:09:00.000e 3000m");
+   }
+   else if (slotName == "south")
+   {
+      fighter.SetAuxData("BLUE_CAP_POINT_1", "24:50:00.000n 120:50:00.000e 3000m");
+      fighter.SetAuxData("BLUE_CAP_POINT_2", "24:35:00.000n 121:06:00.000e 3000m");
+   }
+   else if (slotName == "east_north")
+   {
+      fighter.SetAuxData("BLUE_CAP_POINT_1", "25:10:00.000n 121:10:00.000e 3000m");
+      fighter.SetAuxData("BLUE_CAP_POINT_2", "24:55:00.000n 121:20:00.000e 3000m");
+   }
+   else if (slotName == "east_south")
+   {
+      fighter.SetAuxData("BLUE_CAP_POINT_1", "24:45:00.000n 121:10:00.000e 3000m");
+      fighter.SetAuxData("BLUE_CAP_POINT_2", "24:30:00.000n 121:20:00.000e 3000m");
+   }
+end_script
+
+script bool IsBlueAirTargetAssigned(string targetName, string excludedFighter)
+   for (int fighterIndex = 0; fighterIndex < BLUE_AIR_TARGET_NAMES.Size(); fighterIndex = fighterIndex + 1)
+   {
+      WsfPlatform fighter = WsfSimulation.FindPlatform(BLUE_AIR_TARGET_NAMES[fighterIndex]);
+      if (fighter != null && fighter.Name() != excludedFighter && fighter.DamageFactor() < 1.0 &&
+          fighter.AuxDataExists("TASK_STATUS") && fighter.AuxDataString("TASK_STATUS") == "BLUE_INTERCEPT" &&
+          fighter.AuxDataExists("BLUE_INTERCEPT_TARGET") && fighter.AuxDataString("BLUE_INTERCEPT_TARGET") == targetName)
+      {
+         return true;
+      }
+   }
+   return false;
+end_script
+
+script bool CanAnyBlueSamEngage(WsfPlatform target)
+   if (target == null || target.DamageFactor() >= 1.0) { return false; }
+   for (int samIndex = 0; samIndex < BLUE_SAM_NAMES.Size(); samIndex = samIndex + 1)
+   {
+      WsfPlatform launcher = WsfSimulation.FindPlatform(BLUE_SAM_NAMES[samIndex]);
+      if (launcher != null && launcher.DamageFactor() < 1.0 &&
+          launcher.AuxDataExists("SAM_ON") && launcher.AuxDataBool("SAM_ON") &&
+          launcher.AuxDataExists("SAM_FIRE_RANGE_M") && launcher.SlantRangeTo(target) <= launcher.AuxDataDouble("SAM_FIRE_RANGE_M") &&
+          launcher.AuxDataExists("FIRE_COOLDOWN_UNTIL") && TIME_NOW >= launcher.AuxDataDouble("FIRE_COOLDOWN_UNTIL"))
+      {
+         WsfWeapon samWeapon = launcher.Weapon("sam");
+         if (samWeapon.IsValid() && samWeapon.QuantityRemaining() > 0) { return true; }
+      }
+   }
+   return false;
+end_script
+
+script bool CanBluePatrolEngage(WsfPlatform target, bool airTarget)
+   if (target == null || target.DamageFactor() >= 1.0) { return false; }
+   for (int fighterIndex = 0; fighterIndex < BLUE_AIR_TARGET_NAMES.Size(); fighterIndex = fighterIndex + 1)
+   {
+      WsfPlatform fighter = WsfSimulation.FindPlatform(BLUE_AIR_TARGET_NAMES[fighterIndex]);
+      if (fighter != null && fighter.DamageFactor() < 1.0 && fighter.AuxDataExists("TASK_STATUS") &&
+          fighter.AuxDataString("TASK_STATUS") == "BLUE_CAP_PATROL" &&
+          fighter.AuxDataExists("BLUE_MAX_PURSUIT_RADIUS_M") &&
+          fighter.GroundRangeTo(target.Location()) <= fighter.AuxDataDouble("BLUE_MAX_PURSUIT_RADIUS_M"))
+      {
+         string weaponName = "agm";
+         if (airTarget) { weaponName = "fox3"; }
+         WsfWeapon fighterWeapon = fighter.Weapon(weaponName);
+         if (fighterWeapon.IsValid() && fighterWeapon.QuantityRemaining() > 0) { return true; }
+      }
+   }
+   return false;
+end_script
+
+# Emits only when the complete handoff precondition is true but no interceptor owns the target.
+# Per-target 10-second rate limit keeps this diagnostic usable during long demonstrations.
+script void LogBlueUnassignedAirInterceptDiagnostics()
+   for (int targetIndex = 0; targetIndex < RED_AIR_TARGET_NAMES.Size(); targetIndex = targetIndex + 1)
+   {
+      WsfPlatform target = WsfSimulation.FindPlatform(RED_AIR_TARGET_NAMES[targetIndex]);
+      if (target != null && target.DamageFactor() < 1.0)
+      {
+         bool handoffPreconditions = false;
+         WsfPlatform eligibleCap = null;
+         double eligibleRange = 1000000000.0;
+         bool radarFresh = target.AuxDataExists("DETECTED_BY_BLUE_RADAR") &&
+                           target.AuxDataBool("DETECTED_BY_BLUE_RADAR") &&
+                           target.AuxDataExists("BLUE_RADAR_LAST_DETECT_TIME") &&
+                           TIME_NOW - target.AuxDataDouble("BLUE_RADAR_LAST_DETECT_TIME") <= 10.0;
+         if (radarFresh && !CanAnyBlueSamEngage(target) && !IsBlueAirTargetAssigned(target.Name(), ""))
+         {
+            for (int fighterIndex = 0; fighterIndex < BLUE_AIR_TARGET_NAMES.Size(); fighterIndex = fighterIndex + 1)
+            {
+               WsfPlatform fighter = WsfSimulation.FindPlatform(BLUE_AIR_TARGET_NAMES[fighterIndex]);
+               if (fighter != null && fighter.DamageFactor() < 1.0 &&
+                   fighter.AuxDataExists("TASK_STATUS") && fighter.AuxDataString("TASK_STATUS") == "BLUE_CAP_PATROL" &&
+                   fighter.AuxDataExists("BLUE_MAX_PURSUIT_RADIUS_M"))
+               {
+                  WsfWeapon fox3 = fighter.Weapon("fox3");
+                  double range = fighter.GroundRangeTo(target.Location());
+                  if (fox3.IsValid() && fox3.QuantityRemaining() > 0 &&
+                      range <= fighter.AuxDataDouble("BLUE_MAX_PURSUIT_RADIUS_M") && range < eligibleRange)
+                  {
+                     eligibleCap = fighter;
+                     eligibleRange = range;
+                  }
+               }
+            }
+            handoffPreconditions = eligibleCap != null;
+         }
+
+         if (handoffPreconditions)
+         {
+            if (!target.AuxDataExists("BLUE_ASSIGN_DIAG_CONDITION_SINCE") ||
+                target.AuxDataDouble("BLUE_ASSIGN_DIAG_CONDITION_SINCE") < 0.0)
+            {
+               target.SetAuxData("BLUE_ASSIGN_DIAG_CONDITION_SINCE", TIME_NOW);
+            }
+            double conditionDuration = TIME_NOW - target.AuxDataDouble("BLUE_ASSIGN_DIAG_CONDITION_SINCE");
+            bool diagnosticDue = !target.AuxDataExists("BLUE_ASSIGN_DIAG_LAST_TIME") ||
+                                 TIME_NOW - target.AuxDataDouble("BLUE_ASSIGN_DIAG_LAST_TIME") >= 10.0;
+            if (conditionDuration >= 10.0 && diagnosticDue)
+            {
+               target.SetAuxData("BLUE_ASSIGN_DIAG_LAST_TIME", TIME_NOW);
+               writeln("[BLUE_ASSIGN_DIAG] UNASSIGNED_AIR_TARGET T=", TIME_NOW,
+                       " target=", target.Name(),
+                       " condition_duration=", conditionDuration,
+                       " radar_age=", TIME_NOW - target.AuxDataDouble("BLUE_RADAR_LAST_DETECT_TIME"),
+                       " sam_can_engage=false",
+                       " eligible_cap=", eligibleCap.Name(),
+                       " cap_range=", eligibleRange,
+                       " fox3_remaining=", eligibleCap.Weapon("fox3").QuantityRemaining(),
+                       " cap_status=", eligibleCap.AuxDataString("TASK_STATUS"));
+            }
+         }
+         else
+         {
+            target.SetAuxData("BLUE_ASSIGN_DIAG_CONDITION_SINCE", -1.0);
+         }
+      }
+   }
+end_script
+
+execute at_interval_of 1 sec
+   LogBlueUnassignedAirInterceptDiagnostics();
+end_execute
+script void RecordDestroyedPlatform(string platformName)
+   WsfPlatform defeated = WsfSimulation.FindPlatform(platformName);
+   if (defeated == null || !defeated.AuxDataExists("CURRENT_HP")) { return; }
+   if (defeated.AuxDataDouble("CURRENT_HP") > 0.0) { return; }
+   if (defeated.AuxDataExists("DEFEAT_RECORDED")) { return; }
+
+   defeated.SetAuxData("COMBAT_ALIVE", false);
+   defeated.SetAuxData("TASK_STATUS", "DESTROYED");
+   defeated.SetAuxData("EXTERNAL_TASK", "DESTROYED");
+   defeated.SetAuxData("DEFEAT_RECORDED", true);
+   PENDING_DESTROYED_NAMES.PushBack(platformName);
+   PENDING_DESTROYED_TIMES.PushBack(TIME_NOW + 10.0);
+end_script
+
+execute at_interval_of 0.05 sec
+   for (int redAirIndex = 0; redAirIndex < RED_AIR_TARGET_NAMES.Size(); redAirIndex = redAirIndex + 1)
+   {
+      RecordDestroyedPlatform(RED_AIR_TARGET_NAMES[redAirIndex]);
+   }
+   for (int redGroundIndex = 0; redGroundIndex < RED_GROUND_NAMES.Size(); redGroundIndex = redGroundIndex + 1)
+   {
+      RecordDestroyedPlatform(RED_GROUND_NAMES[redGroundIndex]);
+   }
+   for (int blueAirIndex = 0; blueAirIndex < BLUE_AIR_TARGET_NAMES.Size(); blueAirIndex = blueAirIndex + 1)
+   {
+      RecordDestroyedPlatform(BLUE_AIR_TARGET_NAMES[blueAirIndex]);
+   }
+   for (int blueRadarIndex = 0; blueRadarIndex < BLUE_RADAR_NAMES.Size(); blueRadarIndex = blueRadarIndex + 1)
+   {
+      RecordDestroyedPlatform(BLUE_RADAR_NAMES[blueRadarIndex]);
+   }
+   for (int blueSamIndex = 0; blueSamIndex < BLUE_SAM_NAMES.Size(); blueSamIndex = blueSamIndex + 1)
+   {
+      RecordDestroyedPlatform(BLUE_SAM_NAMES[blueSamIndex]);
+   }
+   for (int blueGroundIndex = 0; blueGroundIndex < BLUE_GROUND_NAMES.Size(); blueGroundIndex = blueGroundIndex + 1)
+   {
+      RecordDestroyedPlatform(BLUE_GROUND_NAMES[blueGroundIndex]);
+   }
+   Array<string> keepDestroyedNames = Array<string>();
+   Array<double> keepDestroyedTimes = Array<double>();
+   for (int deleteIndex = 0; deleteIndex < PENDING_DESTROYED_NAMES.Size(); deleteIndex = deleteIndex + 1)
+   {
+      string destroyedName = PENDING_DESTROYED_NAMES[deleteIndex];
+      double deleteTime = PENDING_DESTROYED_TIMES[deleteIndex];
+      if (TIME_NOW >= deleteTime)
+      {
+         WsfPlatform destroyed = WsfSimulation.FindPlatform(destroyedName);
+         if (destroyed != null && destroyed.AuxDataExists("CURRENT_HP") &&
+             destroyed.AuxDataDouble("CURRENT_HP") <= 0.0)
+         {
+            WsfSimulation.DeletePlatform(destroyedName);
+         }
+      }
+      else
+      {
+         keepDestroyedNames.PushBack(destroyedName);
+         keepDestroyedTimes.PushBack(deleteTime);
+      }
+   }
+   PENDING_DESTROYED_NAMES = keepDestroyedNames;
+   PENDING_DESTROYED_TIMES = keepDestroyedTimes;
+end_execute
+
+script WsfTrack FindFreshAirTargetTrack(WsfPlatform source, string targetName, double maxAgeSec)
+   WsfTrack result = WsfTrack();
+   if (source == null || !source.MasterTrackList().IsValid())
+   {
+      return result;
+   }
+   foreach (WsfLocalTrack localTrack in source.MasterTrackList())
+   {
+      if (localTrack.IsValid() &&
+          localTrack.Target().IsValid() &&
+          localTrack.TargetName() == targetName &&
+          localTrack.LocationValid() &&
+          localTrack.VelocityValid() &&
+          localTrack.TimeSinceUpdated() <= maxAgeSec &&
+          localTrack.AirDomain() &&
+          localTrack.Target().Side() != source.Side())
+      {
+         return localTrack;
+      }
+   }
+   return result;
+end_script
+
+script WsfTrack FindFreshGroundTargetTrack(WsfPlatform source, string targetName, double maxAgeSec)
+   WsfTrack result = WsfTrack();
+   if (source == null || !source.MasterTrackList().IsValid()) { return result; }
+   foreach (WsfLocalTrack localTrack in source.MasterTrackList())
+   {
+      if (localTrack.IsValid() && localTrack.Target().IsValid() &&
+          localTrack.TargetName() == targetName && localTrack.LocationValid() &&
+          localTrack.TimeSinceUpdated() <= maxAgeSec && !localTrack.AirDomain() &&
+          localTrack.Target().Side() != source.Side())
+      {
+         return localTrack;
+      }
+   }
+   return result;
+end_script
+script bool IsLandingLandPoint(double lat, double lon)
+   Array<double> landLats = {25.287421, 25.001899, 24.831732, 24.644355, 24.597805, 24.07685, 23.7150777778, 23.145494, 22.778632, 22.647895, 22.365953, 21.904608, 21.948432, 22.295071, 22.580064, 22.525946, 22.659084, 23.031724, 23.043687, 23.361711, 23.638036, 24.385891, 24.485725, 24.607001, 24.666083, 24.9693111111, 25.000678, 25.111151, 25.1467638889, 25.13642, 25.192125};
+   Array<double> landLons = {121.539724, 122.005382, 121.814626, 121.814952, 121.881847, 121.607432, 121.5576833333, 121.400076, 121.177419, 121.021007, 120.886567, 120.840343, 120.700369, 120.621267, 120.285167, 120.333669, 120.239594, 120.166189, 120.055186, 120.164577, 120.143609, 120.558116, 120.65205, 120.702159, 120.826671, 120.9944777778, 121.005544, 121.210948, 121.2762305556, 121.443207, 121.399099};
+   bool inside = false;
+   int j = landLats.Size() - 1;
+   for (int i = 0; i < landLats.Size(); i = i + 1)
+   {
+      if (((landLats[i] > lat) != (landLats[j] > lat)) &&
+          (lon < (landLons[j] - landLons[i]) * (lat - landLats[i]) /
+                  (landLats[j] - landLats[i]) + landLons[i]))
+      {
+         inside = !inside;
+      }
+      j = i;
+   }
+   return inside;
+end_script
+
+script bool IsLandingNavigationPoint(double lat, double lon)
+   return lat >= 23.45 && lat <= 25.55 && lon >= 118.75 && lon <= 122.15;
+end_script
+
+script bool IsLandingSeaRoute(WsfPlatform ship, WsfGeoPoint target)
+   double startLat = ship.Location().Latitude();
+   double startLon = ship.Location().Longitude();
+   double endLat = target.Latitude();
+   double endLon = target.Longitude();
+   if (!IsLandingNavigationPoint(endLat, endLon)) { return false; }
+   for (int i = 0; i <= 64; i = i + 1)
+   {
+      double fraction = i / 64.0;
+      double probeLat = startLat + (endLat - startLat) * fraction;
+      double probeLon = startLon + (endLon - startLon) * fraction;
+      if (IsLandingLandPoint(probeLat, probeLon))
+      {
+         return false;
+      }
+   }
+   return true;
+end_script
+script bool IsProtectedTransportPhaseTarget(WsfPlatform target)
+   if (target == null) { return false; }
+   if (target.Side() != "red") { return false; }
+   if (target.AuxDataExists("HAS_ARMY") && target.AuxDataBool("HAS_ARMY") &&
+       (!target.AuxDataExists("ARMY_LANDED") || !target.AuxDataBool("ARMY_LANDED")))
+   {
+      return true;
+   }
+   if (target.AuxDataExists("ON_SHIP") && target.AuxDataBool("ON_SHIP") &&
+       (!target.AuxDataExists("LANDED") || !target.AuxDataBool("LANDED")))
+   {
+      return true;
+   }
+   return false;
+end_script
+
+script bool IsTargetAlreadyEngaged(string targetName)
+   if (targetName == "") { return false; }
+   for (int i = 0; i < AIR_PENDING_TARGETS.Size(); i = i + 1)
+   {
+      if (AIR_PENDING_TARGETS[i] == targetName) { return true; }
+   }
+   for (int j = 0; j < GROUND_PENDING_TARGETS.Size(); j = j + 1)
+   {
+      if (GROUND_PENDING_TARGETS[j] == targetName) { return true; }
+   }
+   return false;
+end_script
+
+script double AirMissileContactDistanceM(double missileLat, double missileLon, WsfPlatform candidate)
+   double northM = (candidate.Location().Latitude() - missileLat) * 111320.0;
+   double eastM = (candidate.Location().Longitude() - missileLon) * 111320.0 *
+                  MATH.Cos(missileLat * MATH.RAD_PER_DEG());
+   return MATH.Sqrt(northM * northM + eastM * eastM);
+end_script
+
+script WsfPlatform FindAirMissileContact(string weaponName, double missileLat, double missileLon, double missileAlt)
+   if (weaponName == "red_fox3")
+   {
+      for (int j = 0; j < BLUE_AIR_TARGET_NAMES.Size(); j = j + 1)
+      {
+         WsfPlatform candidate = WsfSimulation.FindPlatform(BLUE_AIR_TARGET_NAMES[j]);
+         if (candidate != null && candidate.DamageFactor() < 1.0 &&
+             AirMissileContactDistanceM(missileLat, missileLon, candidate) <= AIR_MISSILE_LETHAL_RADIUS_M &&
+             MATH.Fabs(candidate.Altitude() - missileAlt) <= 500.0)
+         {
+            return candidate;
+         }
+      }
+   }
+   else if (weaponName == "red_agm")
+   {
+      for (int j = 0; j < BLUE_RADAR_NAMES.Size(); j = j + 1)
+      {
+         WsfPlatform candidate = WsfSimulation.FindPlatform(BLUE_RADAR_NAMES[j]);
+         if (candidate != null && candidate.DamageFactor() < 1.0 &&
+             AirMissileContactDistanceM(missileLat, missileLon, candidate) <= AIR_MISSILE_LETHAL_RADIUS_M &&
+             MATH.Fabs(candidate.Altitude() - missileAlt) <= 500.0)
+         {
+            return candidate;
+         }
+      }
+      for (int k = 0; k < BLUE_SAM_NAMES.Size(); k = k + 1)
+      {
+         WsfPlatform candidate = WsfSimulation.FindPlatform(BLUE_SAM_NAMES[k]);
+         if (candidate != null && candidate.DamageFactor() < 1.0 &&
+             AirMissileContactDistanceM(missileLat, missileLon, candidate) <= AIR_MISSILE_LETHAL_RADIUS_M &&
+             MATH.Fabs(candidate.Altitude() - missileAlt) <= 500.0)
+         {
+            return candidate;
+         }
+      }
+      for (int m = 0; m < BLUE_GROUND_NAMES.Size(); m = m + 1)
+      {
+         WsfPlatform candidate = WsfSimulation.FindPlatform(BLUE_GROUND_NAMES[m]);
+         if (candidate != null && candidate.DamageFactor() < 1.0 &&
+             AirMissileContactDistanceM(missileLat, missileLon, candidate) <= AIR_MISSILE_LETHAL_RADIUS_M &&
+             MATH.Fabs(candidate.Altitude() - missileAlt) <= 500.0)
+         {
+            return candidate;
+         }
+      }
+   }
+   else if (weaponName == "blue_fox3" || weaponName == "sam")
+   {
+      for (int j = 0; j < RED_AIR_TARGET_NAMES.Size(); j = j + 1)
+      {
+         WsfPlatform candidate = WsfSimulation.FindPlatform(RED_AIR_TARGET_NAMES[j]);
+         if (candidate != null && candidate.DamageFactor() < 1.0 && !IsProtectedTransportPhaseTarget(candidate) &&
+             AirMissileContactDistanceM(missileLat, missileLon, candidate) <= AIR_MISSILE_LETHAL_RADIUS_M &&
+             MATH.Fabs(candidate.Altitude() - missileAlt) <= 500.0)
+         {
+            return candidate;
+         }
+      }
+   }
+   else if (weaponName == "blue_agm")
+   {
+      for (int j = 0; j < RED_GROUND_NAMES.Size(); j = j + 1)
+      {
+         WsfPlatform candidate = WsfSimulation.FindPlatform(RED_GROUND_NAMES[j]);
+         if (candidate != null && candidate.DamageFactor() < 1.0 && !IsProtectedTransportPhaseTarget(candidate) &&
+             AirMissileContactDistanceM(missileLat, missileLon, candidate) <= AIR_MISSILE_LETHAL_RADIUS_M &&
+             MATH.Fabs(candidate.Altitude() - missileAlt) <= 500.0)
+         {
+            return candidate;
+         }
+      }
+   }
+   return null;
+end_script
+
+script void IslandWeaponTerminated(WsfWeaponEngagement aEngagement)
+   TraceRedAttack(write_str("WEAPON_TERMINATED,", TIME_NOW, ",", aEngagement.FiringPlatformName(), ",",
+                            aEngagement.WeaponSystemName(), ",observer,", aEngagement.TargetPlatformName(), ",",
+                            aEngagement.MissDistance(), ",-1,-1,false,", aEngagement.ExtendedResult()));
+   WsfPlatform resolvedTarget = WsfSimulation.FindPlatform(aEngagement.TargetPlatformName());
+   if (resolvedTarget != null)
+   {
+      resolvedTarget.SetAuxData("AIR_WEAPON_RESOLVED_TIME", TIME_NOW);
+   }
+   WsfPlatform terminatedWeapon = WsfSimulation.FindPlatform(aEngagement.WeaponPlatformName());
+   if (aEngagement.WeaponSystemName() == "agm" && terminatedWeapon != null &&
+       (!terminatedWeapon.AuxDataExists("SCRIPT_CONTACT_RESOLVED") ||
+        !terminatedWeapon.AuxDataBool("SCRIPT_CONTACT_RESOLVED")))
+   {
+      string contactWeaponName = "blue_agm";
+      string pendingTargetName = "";
+      for (int pendingIndex = 0; pendingIndex < AIR_PENDING_PLATFORM_NAMES.Size(); pendingIndex = pendingIndex + 1)
+      {
+         if (AIR_PENDING_PLATFORM_NAMES[pendingIndex] == aEngagement.WeaponPlatformName())
+         {
+            contactWeaponName = AIR_PENDING_WEAPONS[pendingIndex];
+            pendingTargetName = AIR_PENDING_TARGETS[pendingIndex];
+         }
+      }
+      WsfPlatform terminalContact = WsfSimulation.FindPlatform(pendingTargetName);
+      if (terminalContact != null)
+      {
+         terminatedWeapon.SetAuxData("SCRIPT_CONTACT_RESOLVED", true);
+         terminatedWeapon.SetAuxData("SCRIPT_RESOLUTION_LOGGED", true);
+         ApplyCombatDamage(aEngagement.FiringPlatformName(), "agm", terminalContact);
+         terminalContact.SetAuxData("AIR_WEAPON_RESOLVED_TIME", TIME_NOW);
+      }
+   }
+end_script
+
+observer
+   enable WEAPON_FIRED IslandWeaponFired
+   enable WEAPON_HIT IslandWeaponHit
+   enable WEAPON_MISSED IslandWeaponMissed
+   enable WEAPON_TERMINATED IslandWeaponTerminated
+end_observer
+
+execute at_interval_of 0.1 sec
+{
+   Array<string> keepGroundShooters = Array<string>();
+   Array<string> keepGroundTargets = Array<string>();
+   Array<double> keepGroundHitTimes = Array<double>();
+   for (int groundShotIndex = 0; groundShotIndex < GROUND_PENDING_TARGETS.Size(); groundShotIndex = groundShotIndex + 1)
+   {
+      if (TIME_NOW >= GROUND_PENDING_HIT_TIMES[groundShotIndex])
+      {
+         WsfPlatform groundTarget = WsfSimulation.FindPlatform(GROUND_PENDING_TARGETS[groundShotIndex]);
+         if (groundTarget != null)
+         {
+            ApplyCombatDamage(GROUND_PENDING_SHOOTERS[groundShotIndex], "ground_fire", groundTarget);
+         }
+      }
+      else
+      {
+         keepGroundShooters.PushBack(GROUND_PENDING_SHOOTERS[groundShotIndex]);
+         keepGroundTargets.PushBack(GROUND_PENDING_TARGETS[groundShotIndex]);
+         keepGroundHitTimes.PushBack(GROUND_PENDING_HIT_TIMES[groundShotIndex]);
+      }
+   }
+   GROUND_PENDING_SHOOTERS = keepGroundShooters;
+   GROUND_PENDING_TARGETS = keepGroundTargets;
+   GROUND_PENDING_HIT_TIMES = keepGroundHitTimes;
+   Array<string> keepShooters = Array<string>();
+   Array<string> keepTargets = Array<string>();
+   Array<string> keepWeapons = Array<string>();
+   Array<string> keepWeaponPlatforms = Array<string>();
+   Array<double> keepHitTimes = Array<double>();
+   Array<double> keepLaunchTimes = Array<double>();
+   Array<double> keepStartLats = Array<double>();
+   Array<double> keepStartLons = Array<double>();
+   Array<double> keepAimLats = Array<double>();
+   Array<double> keepAimLons = Array<double>();
+   for (int i = 0; i < AIR_PENDING_TARGETS.Size(); i = i + 1)
+   {
+      WsfPlatform pendingTarget = WsfSimulation.FindPlatform(AIR_PENDING_TARGETS[i]);
+      WsfPlatform weaponPlatform = WsfSimulation.FindPlatform(AIR_PENDING_PLATFORM_NAMES[i]);
+      bool scriptedContact = false;
+      bool weaponResolved = weaponPlatform != null &&
+                            weaponPlatform.AuxDataExists("SCRIPT_CONTACT_RESOLVED") &&
+                            weaponPlatform.AuxDataBool("SCRIPT_CONTACT_RESOLVED");
+      if ((AIR_PENDING_WEAPONS[i] == "red_agm" || AIR_PENDING_WEAPONS[i] == "blue_agm") &&
+          weaponPlatform != null && !weaponResolved)
+      {
+         // AGM fallback is target-bound: never substitute a nearby platform.
+         WsfPlatform contact = pendingTarget;
+         if (contact != null)
+         {
+            weaponPlatform.SetAuxData("SCRIPT_CONTACT_RESOLVED", true);
+            weaponPlatform.SetAuxData("SCRIPT_RESOLUTION_LOGGED", true);
+            ApplyCombatDamage(AIR_PENDING_SHOOTERS[i], "agm", contact);
+            WsfSimulation.DeletePlatform(weaponPlatform.Name());
+            scriptedContact = true;
+         }
+      }
+      bool targetGone = pendingTarget == null || pendingTarget.DamageFactor() >= 1.0;
+      bool nativeResolved = false;
+      if (pendingTarget != null &&
+          pendingTarget.AuxDataExists("AIR_WEAPON_RESOLVED_TIME") &&
+          pendingTarget.AuxDataDouble("AIR_WEAPON_RESOLVED_TIME") >= AIR_PENDING_LAUNCH_TIMES[i])
+      {
+         nativeResolved = true;
+      }
+      bool resolutionTimeout = TIME_NOW >= AIR_PENDING_HIT_TIMES[i];
+      // AGM GPS-bomb fallback: some AFSIM builds terminate the explicit
+      // weapon without emitting a usable ground-target hit event.  If the
+      // flight has resolved or timed out and the target is still alive,
+      // settle the pending AGM against its declared target exactly once.
+      bool agmFallbackContact = false;
+      if ((AIR_PENDING_WEAPONS[i] == "red_agm" || AIR_PENDING_WEAPONS[i] == "blue_agm") &&
+          (nativeResolved || resolutionTimeout) && pendingTarget != null &&
+          !targetGone && !scriptedContact && !weaponResolved)
+      {
+         ApplyCombatDamage(AIR_PENDING_SHOOTERS[i], "agm", pendingTarget);
+         pendingTarget.SetAuxData("AIR_WEAPON_RESOLVED_TIME", TIME_NOW);
+         agmFallbackContact = true;
+      }
+      if (scriptedContact || agmFallbackContact || weaponResolved || targetGone || nativeResolved || resolutionTimeout)
+      {
+         string releaseReason = "native_weapon_resolved";
+         if (scriptedContact) { releaseReason = "script_contact"; }
+         else if (weaponResolved) { releaseReason = "weapon_platform_resolved"; }
+         else if (targetGone) { releaseReason = "target_gone"; }
+         else if (resolutionTimeout) { releaseReason = "max_flight_timeout"; }
+      }
+      else
+      {
+         keepShooters.PushBack(AIR_PENDING_SHOOTERS[i]);
+         keepTargets.PushBack(AIR_PENDING_TARGETS[i]);
+         keepWeapons.PushBack(AIR_PENDING_WEAPONS[i]);
+         keepWeaponPlatforms.PushBack(AIR_PENDING_PLATFORM_NAMES[i]);
+         keepHitTimes.PushBack(AIR_PENDING_HIT_TIMES[i]);
+         keepLaunchTimes.PushBack(AIR_PENDING_LAUNCH_TIMES[i]);
+         keepStartLats.PushBack(AIR_PENDING_START_LATS[i]);
+         keepStartLons.PushBack(AIR_PENDING_START_LONS[i]);
+         keepAimLats.PushBack(AIR_PENDING_AIM_LATS[i]);
+         keepAimLons.PushBack(AIR_PENDING_AIM_LONS[i]);
+      }
+   }
+   AIR_PENDING_SHOOTERS = keepShooters;
+   AIR_PENDING_TARGETS = keepTargets;
+   AIR_PENDING_WEAPONS = keepWeapons;
+   AIR_PENDING_PLATFORM_NAMES = keepWeaponPlatforms;
+   AIR_PENDING_HIT_TIMES = keepHitTimes;
+   AIR_PENDING_LAUNCH_TIMES = keepLaunchTimes;
+   AIR_PENDING_START_LATS = keepStartLats;
+   AIR_PENDING_START_LONS = keepStartLons;
+   AIR_PENDING_AIM_LATS = keepAimLats;
+   AIR_PENDING_AIM_LONS = keepAimLons;
+}
+end_execute
+
+execute at_interval_of 1 sec
+{
+   for (int i = 0; i < RED_AIR_TARGET_NAMES.Size(); i = i + 1)
+   {
+      WsfPlatform tgt = WsfSimulation.FindPlatform(RED_AIR_TARGET_NAMES[i]);
+      if (tgt != null && tgt.AuxDataExists("DETECTED_BY_BLUE_RADAR") && tgt.AuxDataBool("DETECTED_BY_BLUE_RADAR"))
+      {
+         if (!tgt.AuxDataExists("BLUE_RADAR_LAST_DETECT_TIME") ||
+             TIME_NOW - tgt.AuxDataDouble("BLUE_RADAR_LAST_DETECT_TIME") > 10.0)
+         {
+            tgt.SetAuxData("DETECTED_BY_BLUE_RADAR", false);
+         }
+      }
+   }
+}
+end_execute
+
+execute at_interval_of 1 sec
+{
+   for (int i = 0; i < RED_GROUND_NAMES.Size(); i = i + 1)
+   {
+      WsfPlatform tgt = WsfSimulation.FindPlatform(RED_GROUND_NAMES[i]);
+      if (tgt != null && tgt.AuxDataExists("DETECTED_BY_BLUE_GROUND") && tgt.AuxDataBool("DETECTED_BY_BLUE_GROUND"))
+      {
+         if (!tgt.AuxDataExists("BLUE_GROUND_LAST_DETECT_TIME") ||
+             TIME_NOW - tgt.AuxDataDouble("BLUE_GROUND_LAST_DETECT_TIME") > 15.0)
+         {
+            tgt.SetAuxData("DETECTED_BY_BLUE_GROUND", false);
+         }
+      }
+   }
+}
+end_execute
+
+execute at_interval_of 1 sec
+{
+   for (int i = 0; i < BLUE_GROUND_NAMES.Size(); i = i + 1)
+   {
+      WsfPlatform tgt = WsfSimulation.FindPlatform(BLUE_GROUND_NAMES[i]);
+      if (tgt != null && tgt.AuxDataExists("DETECTED_BY_RED_GROUND") && tgt.AuxDataBool("DETECTED_BY_RED_GROUND"))
+      {
+         if (!tgt.AuxDataExists("RED_GROUND_LAST_DETECT_TIME") ||
+             TIME_NOW - tgt.AuxDataDouble("RED_GROUND_LAST_DETECT_TIME") > RED_GROUND_DETECT_HOLD_SEC)
+         {
+            tgt.SetAuxData("DETECTED_BY_RED_GROUND", false);
+         }
+      }
+   }
+}
+end_execute
+
+execute at_interval_of 1 sec
+{
+   if (SCENARIO_ENDED) { return; }
+
+   WsfPlatform base = WsfSimulation.FindPlatform("blue_base");
+   if (base == null) { return; }
+
+   bool anyRedAlive = false;
+   bool redInBase = false;
+   string redOccupier = "";
+   double finalScoreHp = 0.0;
+   int finalScoreUnitCount = 0;
+   for (int i = 0; i < RED_GROUND_NAMES.Size(); i = i + 1)
+   {
+      WsfPlatform redGround = WsfSimulation.FindPlatform(RED_GROUND_NAMES[i]);
+      bool redAlive = redGround != null && redGround.DamageFactor() < 1.0 &&
+                      redGround.AuxDataExists("CURRENT_HP") && redGround.AuxDataDouble("CURRENT_HP") > 0.0;
+      bool redLanded = redAlive && (!redGround.AuxDataExists("ON_SHIP") || !redGround.AuxDataBool("ON_SHIP"));
+      if (redAlive) { anyRedAlive = true; }
+      if (redLanded && base.GroundRangeTo(redGround.Location()) <= FINAL_SCORE_RADIUS_M)
+      {
+         finalScoreHp = finalScoreHp + redGround.AuxDataDouble("CURRENT_HP");
+         finalScoreUnitCount = finalScoreUnitCount + 1;
+      }
+      if (redLanded && base.GroundRangeTo(redGround.Location()) <= CAPTURE_RADIUS_M)
+      {
+         redInBase = true;
+         if (redOccupier == "") { redOccupier = redGround.Name(); }
+      }
+   }
+
+   if (!anyRedAlive)
+   {
+      SCENARIO_ENDED = true;
+      base.SetAuxData("FINAL_SCORE_HP", 0.0);
+      base.SetAuxData("FINAL_SCORE_NORM", 0.0);
+      base.SetAuxData("FINAL_SCORE_UNIT_COUNT", 0);
+      base.SetAuxData("FINAL_SCORE_TIME", TIME_NOW);
+      base.SetAuxData("SCENARIO_RESULT", "BLUE_DEFENSE_SUCCESS");
+      writeln("[SCENARIO_END] BLUE_DEFENSE_SUCCESS T=", TIME_NOW,
+              " reason=all_red_ground_defeated final_score_hp=0 final_score_norm=0 units=0");
+      WsfSimulation.Terminate();
+      return;
+   }
+
+   if (TIME_NOW >= MISSION_END_TIME_SEC)
+   {
+      double finalScoreNorm = MATH.Min(1.0, MATH.Max(0.0, finalScoreHp / FINAL_SCORE_MAX_HP));
+      SCENARIO_ENDED = true;
+      base.SetAuxData("FINAL_SCORE_HP", finalScoreHp);
+      base.SetAuxData("FINAL_SCORE_NORM", finalScoreNorm);
+      base.SetAuxData("FINAL_SCORE_UNIT_COUNT", finalScoreUnitCount);
+      base.SetAuxData("FINAL_SCORE_TIME", TIME_NOW);
+      base.SetAuxData("SCENARIO_RESULT", "FIXED_HORIZON_COMPLETE");
+      writeln("[FINAL_SCORE] T=", TIME_NOW,
+              " center=", base.Name(),
+              " radius_m=", FINAL_SCORE_RADIUS_M,
+              " red_ground_hp=", finalScoreHp,
+              " normalized=", finalScoreNorm,
+              " units=", finalScoreUnitCount);
+      writeln("[SCENARIO_END] FIXED_HORIZON_COMPLETE T=", TIME_NOW,
+              " reason=six_hour_limit final_score_hp=", finalScoreHp,
+              " final_score_norm=", finalScoreNorm,
+              " units=", finalScoreUnitCount);
+      WsfSimulation.Terminate();
+      return;
+   }
+
+   bool blueInBase = false;
+   for (int j = 0; j < BLUE_GROUND_NAMES.Size(); j = j + 1)
+   {
+      WsfPlatform blueGround = WsfSimulation.FindPlatform(BLUE_GROUND_NAMES[j]);
+      if (blueGround != null && blueGround.DamageFactor() < 1.0 &&
+          base.GroundRangeTo(blueGround.Location()) <= CAPTURE_RADIUS_M)
+      {
+         blueInBase = true;
+      }
+   }
+
+   if (redInBase && blueInBase)
+   {
+      if (CAPTURE_STATE != "CONTESTED")
+      {
+         writeln("[CAPTURE] CONTESTED T=", TIME_NOW,
+                 " base=", base.Name(),
+                 " red=", redOccupier,
+                 " blue_present=true");
+      }
+      CAPTURE_STATE = "CONTESTED";
+      CAPTURE_HOLD_START = -1;
+      base.SetAuxData("CAPTURE_STATE", "CONTESTED");
+      return;
+   }
+
+   if (redInBase && !blueInBase)
+   {
+      if (CAPTURE_STATE == "RED_CAPTURED") { return; }
+      if (CAPTURE_STATE != "RED_HOLDING")
+      {
+         CAPTURE_HOLD_START = TIME_NOW;
+         writeln("[CAPTURE] RED_HOLDING T=", TIME_NOW,
+                 " base=", base.Name(),
+                 " red=", redOccupier,
+                 " hold_required=", CAPTURE_HOLD_SEC);
+      }
+      CAPTURE_STATE = "RED_HOLDING";
+      base.SetAuxData("CAPTURE_STATE", "RED_HOLDING");
+      base.SetAuxData("CAPTURE_OCCUPIER", redOccupier);
+      base.SetAuxData("CAPTURE_HOLD_START", CAPTURE_HOLD_START);
+
+      if (TIME_NOW - CAPTURE_HOLD_START >= CAPTURE_HOLD_SEC)
+      {
+         CAPTURE_STATE = "RED_CAPTURED";
+         base.SetAuxData("CAPTURED_BY_RED", true);
+         base.SetAuxData("CAPTURE_STATE", "RED_CAPTURED");
+         writeln("[CAPTURE] SUCCESS T=", TIME_NOW,
+                 " base=", base.Name(),
+                 " red=", redOccupier,
+                 " held_for=", TIME_NOW - CAPTURE_HOLD_START,
+                 " mission_continues_until=", MISSION_END_TIME_SEC);
+      }
+      return;
+   }
+
+   if (CAPTURE_STATE != "NONE")
+   {
+      writeln("[CAPTURE] RESET T=", TIME_NOW,
+              " base=", base.Name(),
+              " reason=no_red_ground_in_capture_radius");
+   }
+   CAPTURE_STATE = "NONE";
+   CAPTURE_HOLD_START = -1;
+   base.SetAuxData("CAPTURE_STATE", "NONE");
+}
+end_execute
+
+# --- Zones ---
+zone red_sea_zone
+   polygonal
+   fill_color 255 0 0 35
+   line_color 200 0 0
+   minimum_altitude 0 feet
+   maximum_altitude 50000 feet
+   lat_lon
+      point 25:20:00.000n 119:40:00.000e
+      point 25:20:00.000n 120:20:00.000e
+      point 24:45:00.000n 120:20:00.000e
+      point 24:45:00.000n 119:40:00.000e
+end_zone
+
+zone landing_zone_north
+   polygonal
+   fill_color 255 255 0 45
+   line_color 220 180 0
+   minimum_altitude 0 feet
+   maximum_altitude 50000 feet
+   lat_lon
+      point 25:10:18.35n 121:15:04.43e
+      point 25:10:18.35n 121:18:04.43e
+      point 25:07:18.35n 121:18:04.43e
+      point 25:07:18.35n 121:15:04.43e
+end_zone
+
+zone landing_zone_central
+   polygonal
+   fill_color 255 255 0 45
+   line_color 220 180 0
+   minimum_altitude 0 feet
+   maximum_altitude 50000 feet
+   lat_lon
+      point 25:00:39.52n 120:58:10.12e
+      point 25:00:39.52n 121:01:10.12e
+      point 24:55:39.52n 121:01:10.12e
+      point 24:55:39.52n 120:58:10.12e
+end_zone
+
+zone landing_zone_south
+   polygonal
+   fill_color 255 255 0 45
+   line_color 220 180 0
+   minimum_altitude 0 feet
+   maximum_altitude 50000 feet
+   lat_lon
+      point 24:30:38.61n 120:37:37.38e
+      point 24:30:38.61n 120:40:37.38e
+      point 24:27:38.61n 120:37:37.38e
+      point 24:27:38.61n 120:37:37.38e
+end_zone
+zone recon_western_screen
+   circular
+   fill_color 180 80 255 28
+   line_color 180 80 255
+   minimum_altitude 9842.52 feet
+   maximum_altitude 32808.40 feet
+   position 24:58:48.00n 121:03:18.00e
+   heading 0 degrees
+   minimum_radius 0 meters
+   maximum_radius 14000 meters
+   start_angle 0 degrees
+   stop_angle 360 degrees
+end_zone
+
+zone recon_base_defense
+   circular
+   fill_color 180 80 255 28
+   line_color 180 80 255
+   minimum_altitude 9842.52 feet
+   maximum_altitude 32808.40 feet
+   position 24:59:24.00n 121:11:24.00e
+   heading 0 degrees
+   minimum_radius 0 meters
+   maximum_radius 15000 meters
+   start_angle 0 degrees
+   stop_angle 360 degrees
+end_zone
+
+zone recon_eastern_screen
+   circular
+   fill_color 180 80 255 28
+   line_color 180 80 255
+   minimum_altitude 9842.52 feet
+   maximum_altitude 32808.40 feet
+   position 25:02:24.00n 121:22:48.00e
+   heading 0 degrees
+   minimum_radius 0 meters
+   maximum_radius 19000 meters
+   start_angle 0 degrees
+   stop_angle 360 degrees
+end_zone
+
+# --- Ground force weapon definitions ---
+weapon_effects GROUND_DIRECT_FIRE_EFFECT WSF_GRADUATED_LETHALITY
+   radius_and_pk 50.0 m 1.0
+end_weapon_effects
+
+platform_type GROUND_DIRECT_FIRE_ROUND WSF_PLATFORM
+   icon aim120
+   category GROUND_DIRECT_FIRE_ROUND
+   weapon_effects GROUND_DIRECT_FIRE_EFFECT
+
+   mover WSF_STRAIGHT_LINE_MOVER
+      update_interval 0.1 sec
+      average_speed 500 m/s
+      guidance_mode pure_pursuit
+      guide_to_truth true
+   end_mover
+
+   processor fuse WSF_WEAPON_FUSE
+      gross_proximity_range 150 m
+      hit_proximity_range 50 m
+      do_not_use_current_target
+      excluded_category GROUND_DIRECT_FIRE_ROUND
+      max_time_of_flight_to_detonate 20 sec
+      air_to_ground_mode
+   end_processor
+end_platform_type
+
+weapon GROUND_DIRECT_FIRE WSF_EXPLICIT_WEAPON
+   launched_platform_type GROUND_DIRECT_FIRE_ROUND
+   weapon_effects GROUND_DIRECT_FIRE_EFFECT
+   firing_delay 0.1 sec
+   firing_interval 300 sec
+   salvo_interval 300 sec
+   slew_mode azimuth_and_elevation
+   azimuth_slew_limits -180 deg 180 deg
+   elevation_slew_limits -10 deg 60 deg
+end_weapon
+
+# --- Platform types ---
+platform_type RED_RECON_AIRCRAFT WSF_PLATFORM
+   indestructible
+   aux_data
+      double MAX_HP = 1
+      double CURRENT_HP = 1
+      bool IS_INDESTRUCTIBLE = false
+      double LAST_DAMAGE_TIME = -1
+      double LAST_ATTACK_TIME = -1
+      double FIRE_COOLDOWN_UNTIL = 0
+      double COMBAT_LOCK_UNTIL = 0
+   end_aux_data
+   icon su27
+   spatial_domain air
+   category AIRCRAFT
+   category aircraft
+   mover WSF_AIR_MOVER
+      default_linear_acceleration 1.0 g
+      default_radial_acceleration 4.0 g
+      default_climb_rate 50 m/s
+      maximum_climb_rate 80 m/s
+      maximum_speed 138.888889 m/s
+      minimum_altitude 0 m
+      maximum_altitude 10000 m
+      turn_rate_limit 4 deg/sec
+   end_mover
+   sensor recon_air_sensor WSF_GEOMETRIC_SENSOR
+      on
+      azimuth_field_of_view   -180 degrees 180 degrees
+      elevation_field_of_view -90 degrees 90 degrees
+      maximum_range           100 km
+      frame_time              1 sec
+      reports_location reports_velocity reports_range reports_bearing reports_elevation
+      ignore_same_side
+      ignore_domain land
+      ignore_domain surface
+      ignore_domain subsurface
+      internal_link recon_track_mgr
+   end_sensor
+
+   sensor recon_ground_sensor WSF_GEOMETRIC_SENSOR
+      on
+      azimuth_field_of_view   -180 degrees 180 degrees
+      elevation_field_of_view -90 degrees 90 degrees
+      maximum_range           100 km
+      frame_time              1 sec
+      reports_location reports_velocity reports_range reports_bearing reports_elevation
+      ignore_same_side
+      ignore_domain air
+      ignore_domain space
+      ignore_domain subsurface
+      internal_link recon_track_mgr
+   end_sensor
+
+   processor recon_track_mgr WSF_TRACK_PROCESSOR
+      master_track_processor
+   end_processor
+
+   processor assessment WSF_UPLINK_PROCESSOR end_processor
+   script_variables
+      double recon_timer = 0;
+      int recon_wp_index = 1;
+      double RECON_LOITER_TURN_DEG = 3.0;
+   end_script_variables
+   execute at_interval_of 1 sec
+   {
+      if (!PLATFORM.AuxDataExists("EXTERNAL_TASK")) { PLATFORM.SetAuxData("EXTERNAL_TASK", "PARKED"); }
+      if (!PLATFORM.AuxDataExists("TASK_STATUS")) { PLATFORM.SetAuxData("TASK_STATUS", "IDLE"); }
+
+      string ext_task = PLATFORM.AuxDataString("EXTERNAL_TASK");
+      string prev_status = PLATFORM.AuxDataString("TASK_STATUS");
+      double commandedSpeed = 100.0;
+      if (PLATFORM.AuxDataExists("COMMAND_SPEED_MPS")) { commandedSpeed = PLATFORM.AuxDataDouble("COMMAND_SPEED_MPS"); }
+      if (commandedSpeed < 40.0) { commandedSpeed = 40.0; }
+      if (commandedSpeed > 138.888889) { commandedSpeed = 138.888889; }
+
+      if (PLATFORM.DamageFactor() < 1.0)
+      {
+         for (int blueAirIndex = 0; blueAirIndex < BLUE_AIR_TARGET_NAMES.Size(); blueAirIndex = blueAirIndex + 1)
+         {
+            WsfPlatform redReconAirTarget = WsfSimulation.FindPlatform(BLUE_AIR_TARGET_NAMES[blueAirIndex]);
+            if (redReconAirTarget != null && redReconAirTarget.DamageFactor() < 1.0)
+            {
+               double redReconAirRange = PLATFORM.GroundRangeTo(redReconAirTarget.Location());
+               if (redReconAirRange <= 100000.0)
+               {
+                  bool redReconFirstDetect = true;
+                  if (redReconAirTarget.AuxDataExists("RED_RECON_LAST_DETECT_TIME") &&
+                      TIME_NOW - redReconAirTarget.AuxDataDouble("RED_RECON_LAST_DETECT_TIME") < 5.0)
+                  {
+                     redReconFirstDetect = false;
+                  }
+                  redReconAirTarget.SetAuxData("DETECTED_BY_RED_RECON", true);
+                  redReconAirTarget.SetAuxData("RED_RECON_LAST_DETECT_TIME", TIME_NOW);
+                  redReconAirTarget.SetAuxData("RED_RECON_DETECTED_BY", PLATFORM.Name());
+                  if (redReconFirstDetect)
+                  {
+                     writeln("[RED_RECON] DETECT T=", TIME_NOW,
+                             " recon=", PLATFORM.Name(),
+                             " target=", redReconAirTarget.Name(),
+                             " target_type=air",
+                             " range=", redReconAirRange,
+                             " bearing=", PLATFORM.TrueBearingTo(redReconAirTarget.Location()));
+                  }
+               }
+            }
+         }
+
+         for (int blueRadarIndex = 0; blueRadarIndex < BLUE_RADAR_NAMES.Size(); blueRadarIndex = blueRadarIndex + 1)
+         {
+            WsfPlatform redReconRadarTarget = WsfSimulation.FindPlatform(BLUE_RADAR_NAMES[blueRadarIndex]);
+            if (redReconRadarTarget != null && redReconRadarTarget.DamageFactor() < 1.0)
+            {
+               double redReconRadarRange = PLATFORM.GroundRangeTo(redReconRadarTarget.Location());
+               if (redReconRadarRange <= 100000.0)
+               {
+                  bool redReconRadarFirstDetect = true;
+                  if (redReconRadarTarget.AuxDataExists("RED_RECON_LAST_DETECT_TIME") &&
+                      TIME_NOW - redReconRadarTarget.AuxDataDouble("RED_RECON_LAST_DETECT_TIME") < 5.0)
+                  {
+                     redReconRadarFirstDetect = false;
+                  }
+                  redReconRadarTarget.SetAuxData("DETECTED_BY_RED_RECON", true);
+                  redReconRadarTarget.SetAuxData("RED_RECON_LAST_DETECT_TIME", TIME_NOW);
+                  redReconRadarTarget.SetAuxData("RED_RECON_DETECTED_BY", PLATFORM.Name());
+                  if (redReconRadarFirstDetect)
+                  {
+                     writeln("[RED_RECON] DETECT T=", TIME_NOW,
+                             " recon=", PLATFORM.Name(),
+                             " target=", redReconRadarTarget.Name(),
+                             " target_type=radar",
+                             " range=", redReconRadarRange,
+                             " bearing=", PLATFORM.TrueBearingTo(redReconRadarTarget.Location()));
+                  }
+               }
+            }
+         }
+
+         for (int blueSamIndex = 0; blueSamIndex < BLUE_SAM_NAMES.Size(); blueSamIndex = blueSamIndex + 1)
+         {
+            WsfPlatform redReconSamTarget = WsfSimulation.FindPlatform(BLUE_SAM_NAMES[blueSamIndex]);
+            if (redReconSamTarget != null && redReconSamTarget.DamageFactor() < 1.0)
+            {
+               double redReconSamRange = PLATFORM.GroundRangeTo(redReconSamTarget.Location());
+               if (redReconSamRange <= 100000.0)
+               {
+                  bool redReconSamFirstDetect = true;
+                  if (redReconSamTarget.AuxDataExists("RED_RECON_LAST_DETECT_TIME") &&
+                      TIME_NOW - redReconSamTarget.AuxDataDouble("RED_RECON_LAST_DETECT_TIME") < 5.0)
+                  {
+                     redReconSamFirstDetect = false;
+                  }
+                  redReconSamTarget.SetAuxData("DETECTED_BY_RED_RECON", true);
+                  redReconSamTarget.SetAuxData("RED_RECON_LAST_DETECT_TIME", TIME_NOW);
+                  redReconSamTarget.SetAuxData("RED_RECON_DETECTED_BY", PLATFORM.Name());
+                  if (redReconSamFirstDetect)
+                  {
+                     writeln("[RED_RECON] DETECT T=", TIME_NOW,
+                             " recon=", PLATFORM.Name(),
+                             " target=", redReconSamTarget.Name(),
+                             " target_type=sam",
+                             " range=", redReconSamRange,
+                             " bearing=", PLATFORM.TrueBearingTo(redReconSamTarget.Location()));
+                  }
+               }
+            }
+         }
+
+         for (int blueGroundIndex = 0; blueGroundIndex < BLUE_GROUND_NAMES.Size(); blueGroundIndex = blueGroundIndex + 1)
+         {
+            WsfPlatform redReconGroundTarget = WsfSimulation.FindPlatform(BLUE_GROUND_NAMES[blueGroundIndex]);
+            if (redReconGroundTarget != null && redReconGroundTarget.DamageFactor() < 1.0)
+            {
+               double redReconGroundRange = PLATFORM.GroundRangeTo(redReconGroundTarget.Location());
+               if (redReconGroundRange <= 100000.0)
+               {
+                  bool redReconGroundFirstDetect = true;
+                  if (redReconGroundTarget.AuxDataExists("RED_RECON_LAST_DETECT_TIME") &&
+                      TIME_NOW - redReconGroundTarget.AuxDataDouble("RED_RECON_LAST_DETECT_TIME") < 5.0)
+                  {
+                     redReconGroundFirstDetect = false;
+                  }
+                  redReconGroundTarget.SetAuxData("DETECTED_BY_RED_RECON", true);
+                  redReconGroundTarget.SetAuxData("RED_RECON_LAST_DETECT_TIME", TIME_NOW);
+                  redReconGroundTarget.SetAuxData("RED_RECON_DETECTED_BY", PLATFORM.Name());
+                  if (redReconGroundFirstDetect)
+                  {
+                     writeln("[RED_RECON] DETECT T=", TIME_NOW,
+                             " recon=", PLATFORM.Name(),
+                             " target=", redReconGroundTarget.Name(),
+                             " target_type=ground",
+                             " range=", redReconGroundRange,
+                             " bearing=", PLATFORM.TrueBearingTo(redReconGroundTarget.Location()));
+                  }
+               }
+            }
+         }
+      }
+
+      if (ext_task == "PARKED" && prev_status == "IDLE")
+      {
+         PLATFORM.GoToSpeed(0);
+         PLATFORM.GoToLocation(PLATFORM.Location());
+      }
+
+      if (ext_task == "RECON" && (prev_status == "IDLE" || prev_status == "RECON_LOITER" || prev_status == "RECON_RTB"))
+      {
+         PLATFORM.SetAuxData("TASK_STATUS", "RECON_MOVING");
+         PLATFORM.SetAuxData("AT_HOME_BASE", false);
+         writeln("T=", TIME_NOW, " RECON: ", PLATFORM.Name(), " starting external recon task");
+      }
+
+      if (prev_status == "RECON_MOVING" || prev_status == "ACK")
+      {
+         bool hasTarget = false;
+         WsfGeoPoint target = PLATFORM.Location();
+         if (PLATFORM.AuxDataExists("SEARCH_CENTER"))
+         {
+            target = WsfGeoPoint.Construct(PLATFORM.AuxDataString("SEARCH_CENTER"));
+            hasTarget = true;
+         }
+         else if (PLATFORM.AuxDataExists("SEARCH_POS"))
+         {
+            target = WsfGeoPoint.Construct(PLATFORM.AuxDataString("SEARCH_POS"));
+            hasTarget = true;
+         }
+         else if (PLATFORM.AuxDataExists("RECON_POS"))
+         {
+            target = WsfGeoPoint.Construct(PLATFORM.AuxDataString("RECON_POS"));
+            hasTarget = true;
+         }
+         else if (PLATFORM.AuxDataExists("RECON_MOVE_POS"))
+         {
+            target = WsfGeoPoint.Construct(PLATFORM.AuxDataString("RECON_MOVE_POS"));
+            hasTarget = true;
+         }
+
+         if (hasTarget)
+         {
+            double reconTargetAltitude = target.Altitude();
+            if (PLATFORM.AuxDataExists("SEARCH_ALT"))
+            {
+               reconTargetAltitude = PLATFORM.AuxDataDouble("SEARCH_ALT");
+            }
+            if (reconTargetAltitude < 1000.0) { reconTargetAltitude = 1000.0; }
+            if (reconTargetAltitude > 10000.0) { reconTargetAltitude = 10000.0; }
+            PLATFORM.GoToSpeed(commandedSpeed);
+            PLATFORM.GoToAltitude(reconTargetAltitude, 50.0);
+            PLATFORM.TurnToHeading(PLATFORM.TrueBearingTo(target));
+            if (PLATFORM.GroundRangeTo(target) < 1000 &&
+                MATH.Fabs(PLATFORM.Altitude() - reconTargetAltitude) < 100.0)
+            {
+               PLATFORM.SetAuxData("EXTERNAL_TASK", "RECON_HOLD");
+               PLATFORM.SetAuxData("TASK_STATUS", "RECON_LOITER");
+               PLATFORM.SetVelocityNED(0, 0, 0);
+               PLATFORM.GoToSpeed(0);
+               PLATFORM.GoToLocation(PLATFORM.Location());
+               writeln("T=", TIME_NOW, " RECON: ", PLATFORM.Name(), " arrived external recon point");
+            }
+         }
+         else
+         {
+            PLATFORM.GoToSpeed(0);
+            writeln("T=", TIME_NOW, " RECON: ", PLATFORM.Name(), " missing SEARCH_CENTER/SEARCH_POS/RECON_POS");
+         }
+      }
+
+      if (prev_status == "RECON_LOITER" && ext_task == "RECON_HOLD")
+      {
+         PLATFORM.SetVelocityNED(0, 0, 0);
+         PLATFORM.GoToSpeed(0);
+         PLATFORM.GoToLocation(PLATFORM.Location());
+      }
+
+      if (ext_task == "RETREAT" && prev_status != "RECON_RTB")
+      {
+         double returnAltitude = PLATFORM.Altitude();
+         if (returnAltitude < 1000.0) { returnAltitude = 1000.0; }
+         if (returnAltitude > 10000.0) { returnAltitude = 10000.0; }
+         PLATFORM.SetAuxData("RETURN_ALTITUDE", returnAltitude);
+         PLATFORM.SetAuxData("TASK_STATUS", "RECON_RTB");
+         prev_status = "RECON_RTB";
+      }
+      if (prev_status == "RECON_RTB")
+      {
+         WsfPlatform home = WsfSimulation.FindPlatform(PLATFORM.AuxDataString("HOME_PLATFORM"));
+         if (home != null)
+         {
+            double returnAltitude = PLATFORM.Altitude();
+            if (PLATFORM.AuxDataExists("RETURN_ALTITUDE"))
+            {
+               returnAltitude = PLATFORM.AuxDataDouble("RETURN_ALTITUDE");
+            }
+            if (returnAltitude < 1000.0) { returnAltitude = 1000.0; }
+            if (returnAltitude > 10000.0) { returnAltitude = 10000.0; }
+            PLATFORM.GoToSpeed(commandedSpeed);
+            PLATFORM.GoToAltitude(returnAltitude, 50.0);
+            PLATFORM.TurnToHeading(PLATFORM.TrueBearingTo(home.Location()));
+            if (PLATFORM.GroundRangeTo(home.Location()) < 1000)
+            {
+               PLATFORM.SetLocation(home.Location());
+               PLATFORM.SetVelocityNED(0, 0, 0);
+               PLATFORM.GoToSpeed(0);
+               PLATFORM.GoToLocation(PLATFORM.Location());
+               PLATFORM.SetAuxData("EXTERNAL_TASK", "PARKED");
+               PLATFORM.SetAuxData("TASK_STATUS", "IDLE");
+               PLATFORM.SetAuxData("AT_HOME_BASE", true);
+            }
+         }
+      }
+   }
+   end_execute
+end_platform_type
+
+platform_type RED_ATTACK_AIRCRAFT WSF_PLATFORM
+   indestructible
+   aux_data
+      double MAX_HP = 1
+      double CURRENT_HP = 1
+      bool IS_INDESTRUCTIBLE = false
+      double LAST_DAMAGE_TIME = -1
+      double LAST_ATTACK_TIME = -1
+      double FIRE_COOLDOWN_UNTIL = 0
+      double COMBAT_LOCK_UNTIL = 0
+   end_aux_data
+   icon su27
+   spatial_domain air
+   category AIRCRAFT
+   mover WSF_AIR_MOVER
+      default_linear_acceleration 1.0 g
+      default_radial_acceleration 4.0 g
+      default_climb_rate 50 m/s
+      maximum_climb_rate 80 m/s
+      maximum_speed 138.888889 m/s
+      minimum_altitude 0 m
+      maximum_altitude 6000 m
+      turn_rate_limit 4 deg/sec
+   end_mover
+   sensor attack_sensor WSF_GEOMETRIC_SENSOR
+      on
+      azimuth_field_of_view   -180 degrees 180 degrees
+      elevation_field_of_view -90 degrees 90 degrees
+      maximum_range           40 km
+      frame_time              1 sec
+      reports_location reports_velocity reports_range reports_bearing reports_elevation
+      ignore_same_side
+      internal_link data_mgr
+   end_sensor
+   processor data_mgr WSF_TRACK_PROCESSOR
+      master_track_processor
+   end_processor
+   track_manager
+      fusion_method weighted_average
+      end_fusion_method
+   end_track_manager
+   weapon fox3 MEDIUM_RANGE_RADAR_MISSILE quantity 1 end_weapon # air targets only
+   weapon agm BLUE_GPS_BOMB_1 quantity 1 end_weapon  # land/surface targets only
+   processor assessment WSF_UPLINK_PROCESSOR end_processor
+   script_variables
+      double attack_timer = 0;
+      double FOX3_FIRE_RANGE_M = 40000;
+      double AGM_FIRE_RANGE_M = 45000;
+      double AIR_WEAPON_MIN_LAUNCH_ALT_M = 3000.0;
+      double ATTACK_ASSESS_SEC = 90;
+      double ATTACK_LOITER_TURN_DEG = 3.0;
+   end_script_variables
+   execute at_interval_of 1 sec
+   {
+      if (!PLATFORM.AuxDataExists("EXTERNAL_TASK")) { PLATFORM.SetAuxData("EXTERNAL_TASK", "PARKED"); }
+      if (!PLATFORM.AuxDataExists("TASK_STATUS")) { PLATFORM.SetAuxData("TASK_STATUS", "IDLE"); }
+      if (!PLATFORM.AuxDataExists("HOME_PLATFORM")) { PLATFORM.SetAuxData("HOME_PLATFORM", "red_carrier"); }
+      if (!PLATFORM.AuxDataExists("AT_HOME_BASE")) { PLATFORM.SetAuxData("AT_HOME_BASE", true); }
+
+      string ext_task = PLATFORM.AuxDataString("EXTERNAL_TASK");
+      string prev_status = PLATFORM.AuxDataString("TASK_STATUS");
+      double commandedSpeed = 100.0;
+      if (PLATFORM.AuxDataExists("COMMAND_SPEED_MPS")) { commandedSpeed = PLATFORM.AuxDataDouble("COMMAND_SPEED_MPS"); }
+      if (commandedSpeed < 40.0) { commandedSpeed = 40.0; }
+      if (commandedSpeed > 138.888889) { commandedSpeed = 138.888889; }
+      WsfWeapon fox3 = PLATFORM.Weapon("fox3");
+      WsfWeapon agm = PLATFORM.Weapon("agm");
+
+      if (ext_task == "FIRE_AAM" || ext_task == "FIRE_AGM")
+      {
+         string observedTarget = "";
+         if (PLATFORM.AuxDataExists("TARGET_NAME")) { observedTarget = PLATFORM.AuxDataString("TARGET_NAME"); }
+         else if (PLATFORM.AuxDataExists("ATTACK_TARGET_NAME")) { observedTarget = PLATFORM.AuxDataString("ATTACK_TARGET_NAME"); }
+         TraceRedAttack(write_str("COMMAND,", TIME_NOW, ",", PLATFORM.Name(), ",", ext_task, ",", prev_status,
+                                  ",", observedTarget, ",-1,", PLATFORM.Altitude(), ",-1,false,observed"));
+      }
+
+      if (ext_task == "ATTACK_HOLD" && prev_status != "RED_ATTACK_REARMING" && prev_status != "RED_ATTACK_RTB")
+      {
+         if (PLATFORM.AuxDataBool("AT_HOME_BASE"))
+         {
+            PLATFORM.SetAuxData("AT_HOME_BASE", false);
+            PLATFORM.GoToSpeed(0);
+            PLATFORM.GoToLocation(PLATFORM.Location());
+         }
+         else
+         {
+            PLATFORM.SetAuxData("TASK_STATUS", "ATTACK_LOITER");
+            PLATFORM.SetVelocityNED(0, 0, 0);
+            PLATFORM.GoToSpeed(0);
+            PLATFORM.GoToLocation(PLATFORM.Location());
+         }
+      }
+
+      if (ext_task == "ATTACK_MOVE_POINT" && prev_status != "RED_ATTACK_REARMING")
+      {
+         string movePos = "";
+         if (PLATFORM.AuxDataExists("ATTACK_MOVE_POS")) { movePos = PLATFORM.AuxDataString("ATTACK_MOVE_POS"); }
+         else if (PLATFORM.AuxDataExists("MOVE_POS")) { movePos = PLATFORM.AuxDataString("MOVE_POS"); }
+         else if (PLATFORM.AuxDataExists("TARGET_POS")) { movePos = PLATFORM.AuxDataString("TARGET_POS"); }
+         writeln("[RED_ATTACK] MOVE_START T=", TIME_NOW,
+                 " attacker=", PLATFORM.Name(),
+                 " task=", ext_task,
+                 " move_pos=", movePos);
+         PLATFORM.SetAuxData("TASK_STATUS", "ATTACK_MOVING");
+         PLATFORM.SetAuxData("AT_HOME_BASE", false);
+      }
+      if (ext_task == "ATTACK_MOVE_POINT" &&
+          (prev_status == "ATTACK_MOVING" || prev_status == "ACK"))
+      {
+         bool hasMoveTarget = false;
+         WsfGeoPoint moveTarget = PLATFORM.Location();
+         if (PLATFORM.AuxDataExists("ATTACK_MOVE_POS"))
+         {
+            moveTarget = WsfGeoPoint.Construct(PLATFORM.AuxDataString("ATTACK_MOVE_POS"));
+            hasMoveTarget = true;
+         }
+         else if (PLATFORM.AuxDataExists("MOVE_POS"))
+         {
+            moveTarget = WsfGeoPoint.Construct(PLATFORM.AuxDataString("MOVE_POS"));
+            hasMoveTarget = true;
+         }
+         else if (PLATFORM.AuxDataExists("TARGET_POS"))
+         {
+            moveTarget = WsfGeoPoint.Construct(PLATFORM.AuxDataString("TARGET_POS"));
+            hasMoveTarget = true;
+         }
+         if (hasMoveTarget)
+         {
+            double attackTargetAltitude = moveTarget.Altitude();
+            if (PLATFORM.AuxDataExists("ATTACK_MOVE_ALT"))
+            {
+               attackTargetAltitude = PLATFORM.AuxDataDouble("ATTACK_MOVE_ALT");
+            }
+            if (attackTargetAltitude < 1000.0) { attackTargetAltitude = 1000.0; }
+            if (attackTargetAltitude > 6000.0) { attackTargetAltitude = 6000.0; }
+            PLATFORM.GoToSpeed(commandedSpeed);
+            PLATFORM.GoToAltitude(attackTargetAltitude, 50.0);
+            PLATFORM.TurnToHeading(PLATFORM.TrueBearingTo(moveTarget));
+            if (PLATFORM.GroundRangeTo(moveTarget) < 1000 &&
+                MATH.Fabs(PLATFORM.Altitude() - attackTargetAltitude) < 100.0)
+            {
+               writeln("[RED_ATTACK] MOVE_ARRIVED T=", TIME_NOW,
+                       " attacker=", PLATFORM.Name(),
+                       " range=", PLATFORM.GroundRangeTo(moveTarget));
+               PLATFORM.SetAuxData("EXTERNAL_TASK", "ATTACK_HOLD");
+               PLATFORM.SetAuxData("TASK_STATUS", "ATTACK_LOITER");
+               PLATFORM.SetVelocityNED(0, 0, 0);
+               PLATFORM.GoToSpeed(0);
+               PLATFORM.GoToLocation(PLATFORM.Location());
+            }
+         }
+         else
+         {
+            writeln("[RED_ATTACK] MOVE_REJECTED T=", TIME_NOW,
+                    " attacker=", PLATFORM.Name(),
+                    " reason=missing_move_pos");
+            PLATFORM.SetAuxData("EXTERNAL_TASK", "ATTACK_HOLD");
+            PLATFORM.SetAuxData("TASK_STATUS", "IDLE");
+         }
+      }
+
+      if (prev_status == "ATTACK_LOITER" && ext_task == "ATTACK_HOLD")
+      {
+         PLATFORM.SetVelocityNED(0, 0, 0);
+         PLATFORM.GoToSpeed(0);
+         PLATFORM.GoToLocation(PLATFORM.Location());
+      }
+
+      if ((ext_task == "FIRE_AAM" || ext_task == "FIRE_AGM") &&
+          (prev_status == "IDLE" || prev_status == "ATTACK_MOVING" ||
+           prev_status == "ATTACK_LOITER" || prev_status == "ACK"))
+      {
+         string targetName = "";
+         if (PLATFORM.AuxDataExists("TARGET_NAME")) { targetName = PLATFORM.AuxDataString("TARGET_NAME"); }
+         else if (PLATFORM.AuxDataExists("ATTACK_TARGET_NAME")) { targetName = PLATFORM.AuxDataString("ATTACK_TARGET_NAME"); }
+         else if (PLATFORM.AuxDataExists("FIRE_TARGET_NAME")) { targetName = PLATFORM.AuxDataString("FIRE_TARGET_NAME"); }
+         else if (PLATFORM.AuxDataExists("FIRE_AAM_TARGET_NAME")) { targetName = PLATFORM.AuxDataString("FIRE_AAM_TARGET_NAME"); }
+         else if (PLATFORM.AuxDataExists("FIRE_AGM_TARGET_NAME")) { targetName = PLATFORM.AuxDataString("FIRE_AGM_TARGET_NAME"); }
+         string weaponName = "";
+         if (PLATFORM.AuxDataExists("WEAPON")) { weaponName = PLATFORM.AuxDataString("WEAPON"); }
+         PLATFORM.SetAuxData("RED_ATTACK_TARGET_NAME", targetName);
+         PLATFORM.SetAuxData("TASK_STATUS", "RED_ATTACK_ENGAGE");
+         PLATFORM.SetAuxData("AT_HOME_BASE", false);
+         TraceRedAttack(write_str("START,", TIME_NOW, ",", PLATFORM.Name(), ",", ext_task, ",", prev_status,
+                                  ",", targetName, ",-1,", PLATFORM.Altitude(), ",-1,false,accepted"));
+         prev_status = "RED_ATTACK_ENGAGE";
+      }
+
+      if (prev_status == "RED_ATTACK_ENGAGE")
+      {
+         string targetName = "";
+         if (PLATFORM.AuxDataExists("RED_ATTACK_TARGET_NAME")) { targetName = PLATFORM.AuxDataString("RED_ATTACK_TARGET_NAME"); }
+         WsfPlatform tgt = WsfSimulation.FindPlatform(targetName);
+         if (tgt == null || tgt.DamageFactor() >= 1.0)
+         {
+            writeln("[RED_ATTACK] RTB T=", TIME_NOW,
+                    " attacker=", PLATFORM.Name(),
+                    " reason=target_gone target=", targetName);
+            PLATFORM.SetAuxData("TASK_STATUS", "IDLE");
+            PLATFORM.SetAuxData("EXTERNAL_TASK", "ATTACK_HOLD");
+            return;
+         }
+
+         if (IsTargetAlreadyEngaged(targetName))
+         {
+            writeln("[RED_ATTACK] ENGAGEMENT_REJECTED T=", TIME_NOW,
+                    " attacker=", PLATFORM.Name(),
+                    " target=", targetName,
+                    " reason=target_already_engaged");
+            PLATFORM.SetAuxData("TASK_STATUS", "IDLE");
+            PLATFORM.SetAuxData("EXTERNAL_TASK", "ATTACK_HOLD");
+            return;
+         }
+
+         // Firing never owns navigation. The attack policy must first move
+         // into a valid local sensor/weapon envelope, then issue FIRE.
+         double range = PLATFORM.SlantRangeTo(tgt);
+         string fireTask = PLATFORM.AuxDataString("EXTERNAL_TASK");
+         if (fireTask == "FIRE_AAM")
+         {
+            bool aamWeaponReady = fox3.IsValid() && fox3.QuantityRemaining() > 0;
+            bool aamInRange = range <= FOX3_FIRE_RANGE_M;
+            bool aamAltitudeOk = PLATFORM.Altitude() >= AIR_WEAPON_MIN_LAUNCH_ALT_M;
+            if (aamWeaponReady && aamInRange && aamAltitudeOk)
+            {
+               WsfTrack targetTrack = FindFreshAirTargetTrack(PLATFORM, targetName, 2.0);
+               double targetTrackAge = -1.0;
+               bool targetVelocityValid = false;
+               bool fired = false;
+               if (targetTrack.IsValid())
+               {
+                  targetTrackAge = targetTrack.TimeSinceUpdated();
+                  targetVelocityValid = targetTrack.VelocityValid();
+                  fired = fox3.Fire(targetTrack);
+               }
+               if (!fired)
+               {
+                  string blockReason = "native_fire_failed";
+                  if (!targetTrack.IsValid()) { blockReason = "no_fresh_air_track"; }
+                  writeln("[RED_ATTACK] FIRE_BLOCKED T=", TIME_NOW,
+                          " attacker=", PLATFORM.Name(),
+                          " task=FIRE_AAM",
+                          " target=", targetName,
+                          " reason=", blockReason,
+                          " range=", range,
+                          " altitude=", PLATFORM.Altitude(),
+                          " ammo=", fox3.QuantityRemaining(),
+                          " track_valid=", targetTrack.IsValid(),
+                          " track_age=", targetTrackAge,
+                          " velocity_valid=", targetVelocityValid);
+               }
+               TraceRedAttack(write_str("FIRE_RESULT,", TIME_NOW, ",", PLATFORM.Name(), ",FIRE_AAM,", prev_status,
+                                        ",", targetName, ",", range, ",", PLATFORM.Altitude(), ",",
+                                        fox3.QuantityRemaining(), ",", fired, ",track_valid=", targetTrack.IsValid()));
+               if (fired)
+               {
+                  AIR_PENDING_SHOOTERS.PushBack(PLATFORM.Name());
+                  AIR_PENDING_TARGETS.PushBack(targetName);
+                  AIR_PENDING_WEAPONS.PushBack("red_fox3");
+                  AIR_PENDING_PLATFORM_NAMES.PushBack(PLATFORM.AuxDataString("LAST_WEAPON_PLATFORM_NAME"));
+                  AIR_PENDING_HIT_TIMES.PushBack(TIME_NOW + 125.0);
+                  AIR_PENDING_AIM_LATS.PushBack(tgt.Location().Latitude());
+                  AIR_PENDING_AIM_LONS.PushBack(tgt.Location().Longitude());
+                  AIR_PENDING_LAUNCH_TIMES.PushBack(TIME_NOW);
+                  AIR_PENDING_START_LATS.PushBack(PLATFORM.Location().Latitude());
+                  AIR_PENDING_START_LONS.PushBack(PLATFORM.Location().Longitude());
+               PLATFORM.SetAuxData("CURRENT_AAM", (int)fox3.QuantityRemaining());
+                  writeln("[RED_ATTACK] FIRE_SENT T=", TIME_NOW,
+                          " attacker=", PLATFORM.Name(),
+                          " task=FIRE_AAM",
+                          " target=", targetName,
+                          " weapon=fox3",
+                          " range=", range,
+                          " fired=", fired,
+                          " remaining=", fox3.QuantityRemaining());
+                  PLATFORM.SetAuxData("TASK_STATUS", "IDLE");
+                  PLATFORM.SetAuxData("EXTERNAL_TASK", "ATTACK_HOLD");
+                  return;
+               }
+            }
+            else
+            {
+               string blockReason = "unknown";
+               if (!aamWeaponReady) { blockReason = "no_aam"; }
+               else if (!aamInRange) { blockReason = "out_of_range"; }
+               else if (!aamAltitudeOk) { blockReason = "altitude_below_min"; }
+               writeln("[RED_ATTACK] FIRE_BLOCKED T=", TIME_NOW,
+                       " attacker=", PLATFORM.Name(),
+                       " task=FIRE_AAM",
+                       " target=", targetName,
+                       " reason=", blockReason,
+                       " range=", range,
+                       " altitude=", PLATFORM.Altitude(),
+                       " ammo=", fox3.QuantityRemaining(),
+                       " required_altitude=", AIR_WEAPON_MIN_LAUNCH_ALT_M,
+                       " max_range=", FOX3_FIRE_RANGE_M);
+               if (!aamWeaponReady)
+               {
+                  PLATFORM.SetAuxData("TASK_STATUS", "IDLE");
+                  PLATFORM.SetAuxData("EXTERNAL_TASK", "ATTACK_HOLD");
+                  return;
+               }
+            }
+         }
+         else if (fireTask == "FIRE_AGM")
+         {
+            bool agmWeaponReady = agm.IsValid() && agm.QuantityRemaining() > 0;
+            bool agmInRange = range <= AGM_FIRE_RANGE_M;
+            bool agmAltitudeOk = PLATFORM.Altitude() >= AIR_WEAPON_MIN_LAUNCH_ALT_M;
+            if (agmWeaponReady && agmInRange && agmAltitudeOk)
+            {
+               WsfGeoPoint aimPoint = tgt.Location();
+               aimPoint.SetAltitudeAGL(10.0);
+               bool fired = agm.FireAtLocation(aimPoint);
+               if (!fired)
+               {
+                  writeln("[RED_ATTACK] FIRE_BLOCKED T=", TIME_NOW,
+                          " attacker=", PLATFORM.Name(),
+                          " task=FIRE_AGM",
+                          " target=", targetName,
+                          " reason=native_fire_failed",
+                          " range=", range,
+                          " altitude=", PLATFORM.Altitude(),
+                          " ammo=", agm.QuantityRemaining());
+               }
+               TraceRedAttack(write_str("FIRE_RESULT,", TIME_NOW, ",", PLATFORM.Name(), ",FIRE_AGM,", prev_status,
+                                        ",", targetName, ",", range, ",", PLATFORM.Altitude(), ",",
+                                        agm.QuantityRemaining(), ",", fired, ",fire_at_location"));
+               if (fired)
+               {
+                  AIR_PENDING_SHOOTERS.PushBack(PLATFORM.Name());
+                  AIR_PENDING_TARGETS.PushBack(targetName);
+                  AIR_PENDING_WEAPONS.PushBack("red_agm");
+                  AIR_PENDING_PLATFORM_NAMES.PushBack(PLATFORM.AuxDataString("LAST_WEAPON_PLATFORM_NAME"));
+                  AIR_PENDING_HIT_TIMES.PushBack(TIME_NOW + MATH.Max(10.0, range / 300.0));
+                  AIR_PENDING_AIM_LATS.PushBack(aimPoint.Latitude());
+                  AIR_PENDING_AIM_LONS.PushBack(aimPoint.Longitude());
+
+                  AIR_PENDING_LAUNCH_TIMES.PushBack(TIME_NOW);
+
+                  AIR_PENDING_START_LATS.PushBack(PLATFORM.Location().Latitude());
+
+                  AIR_PENDING_START_LONS.PushBack(PLATFORM.Location().Longitude());
+               PLATFORM.SetAuxData("CURRENT_AGM", (int)agm.QuantityRemaining());
+                  writeln("[RED_ATTACK] FIRE_SENT T=", TIME_NOW,
+                          " attacker=", PLATFORM.Name(),
+                          " task=FIRE_AGM",
+                          " target=", targetName,
+                          " weapon=agm",
+                          " range=", range,
+                          " fired=", fired,
+                          " remaining=", agm.QuantityRemaining());
+                  PLATFORM.SetAuxData("TASK_STATUS", "IDLE");
+                  PLATFORM.SetAuxData("EXTERNAL_TASK", "ATTACK_HOLD");
+                  return;
+               }
+            }
+            else
+            {
+               string blockReason = "unknown";
+               if (!agmWeaponReady) { blockReason = "no_agm"; }
+               else if (!agmInRange) { blockReason = "out_of_range"; }
+               else if (!agmAltitudeOk) { blockReason = "altitude_below_min"; }
+               writeln("[RED_ATTACK] FIRE_BLOCKED T=", TIME_NOW,
+                       " attacker=", PLATFORM.Name(),
+                       " task=FIRE_AGM",
+                       " target=", targetName,
+                       " reason=", blockReason,
+                       " range=", range,
+                       " altitude=", PLATFORM.Altitude(),
+                       " ammo=", agm.QuantityRemaining(),
+                       " required_altitude=", AIR_WEAPON_MIN_LAUNCH_ALT_M,
+                       " max_range=", AGM_FIRE_RANGE_M);
+               if (!agmWeaponReady)
+               {
+                  PLATFORM.SetAuxData("TASK_STATUS", "IDLE");
+                  PLATFORM.SetAuxData("EXTERNAL_TASK", "ATTACK_HOLD");
+                  return;
+               }
+            }
+         }
+      }
+
+      if (ext_task == "RETREAT" && prev_status != "RED_ATTACK_RTB" && prev_status != "RED_ATTACK_REARMING")
+      {
+         double returnAltitude = PLATFORM.Altitude();
+         if (returnAltitude < 1000.0) { returnAltitude = 1000.0; }
+         if (returnAltitude > 6000.0) { returnAltitude = 6000.0; }
+         PLATFORM.SetAuxData("RETURN_ALTITUDE", returnAltitude);
+         writeln("[RED_ATTACK] RTB T=", TIME_NOW,
+                 " attacker=", PLATFORM.Name(),
+                 " reason=retreat_command");
+         PLATFORM.SetAuxData("TASK_STATUS", "RED_ATTACK_RTB");
+         prev_status = "RED_ATTACK_RTB";
+      }
+      if (prev_status == "RED_ATTACK_RTB")
+      {
+         WsfPlatform home = WsfSimulation.FindPlatform(PLATFORM.AuxDataString("HOME_PLATFORM"));
+         if (home != null)
+         {
+            double returnAltitude = PLATFORM.Altitude();
+            if (PLATFORM.AuxDataExists("RETURN_ALTITUDE"))
+            {
+               returnAltitude = PLATFORM.AuxDataDouble("RETURN_ALTITUDE");
+            }
+            if (returnAltitude < 1000.0) { returnAltitude = 1000.0; }
+            if (returnAltitude > 6000.0) { returnAltitude = 6000.0; }
+            PLATFORM.GoToSpeed(commandedSpeed);
+            PLATFORM.GoToAltitude(returnAltitude, 50.0);
+            PLATFORM.TurnToHeading(PLATFORM.TrueBearingTo(home.Location()));
+            if (PLATFORM.GroundRangeTo(home.Location()) < 1000)
+            {
+               PLATFORM.SetLocation(home.Location());
+               PLATFORM.SetVelocityNED(0, 0, 0);
+               PLATFORM.GoToSpeed(0);
+               PLATFORM.GoToLocation(PLATFORM.Location());
+               PLATFORM.SetAuxData("TASK_STATUS", "RED_ATTACK_REARMING");
+               PLATFORM.SetAuxData("REARM_START_TIME", TIME_NOW);
+               PLATFORM.SetAuxData("REARM_COMPLETE_TIME", TIME_NOW + 600.0);
+               PLATFORM.SetAuxData("AT_HOME_BASE", false);
+               writeln("[RED_ATTACK] REARM_START T=", TIME_NOW,
+                       " attacker=", PLATFORM.Name(),
+                       " home=", home.Name(),
+                       " complete_at=", TIME_NOW + 600.0);
+            }
+         }
+      }
+
+      if (prev_status == "RED_ATTACK_REARMING")
+      {
+         WsfPlatform home = WsfSimulation.FindPlatform(PLATFORM.AuxDataString("HOME_PLATFORM"));
+         PLATFORM.SetVelocityNED(0, 0, 0);
+         PLATFORM.GoToSpeed(0);
+         PLATFORM.GoToLocation(PLATFORM.Location());
+         if (home != null && TIME_NOW >= PLATFORM.AuxDataDouble("REARM_COMPLETE_TIME"))
+         {
+            int aamLoaded = 0;
+            int agmLoaded = 0;
+            int carrierAamStock = home.AuxDataInt("AAM_STOCK");
+            int carrierAgmStock = home.AuxDataInt("AGM_STOCK");
+            if (fox3.IsValid() && fox3.QuantityRemaining() < 1 && carrierAamStock > 0)
+            {
+               fox3.SetQuantityRemaining(1);
+               carrierAamStock = carrierAamStock - 1;
+               aamLoaded = 1;
+            }
+            if (agm.IsValid() && agm.QuantityRemaining() < 1 && carrierAgmStock > 0)
+            {
+               agm.SetQuantityRemaining(1);
+               carrierAgmStock = carrierAgmStock - 1;
+               agmLoaded = 1;
+            }
+            home.SetAuxData("AAM_STOCK", carrierAamStock);
+            home.SetAuxData("AGM_STOCK", carrierAgmStock);
+            int currentAam = (int)fox3.QuantityRemaining();
+            int currentAgm = (int)agm.QuantityRemaining();
+            PLATFORM.SetAuxData("CURRENT_AAM", currentAam);
+            PLATFORM.SetAuxData("CURRENT_AGM", currentAgm);
+            PLATFORM.SetAuxData("RED_ATTACK_TARGET_NAME", "");
+            PLATFORM.SetAuxData("EXTERNAL_TASK", "PARKED");
+            PLATFORM.SetAuxData("TASK_STATUS", "IDLE");
+            PLATFORM.SetAuxData("AT_HOME_BASE", true);
+            writeln("[RED_ATTACK] REARM_COMPLETE T=", TIME_NOW,
+                    " attacker=", PLATFORM.Name(),
+                    " home=", home.Name(),
+                    " aam_loaded=", aamLoaded,
+                    " agm_loaded=", agmLoaded,
+                    " current_aam=", currentAam,
+                    " current_agm=", currentAgm,
+                    " carrier_aam_stock=", carrierAamStock,
+                    " carrier_agm_stock=", carrierAgmStock);
+         }
+      }
+      if (ext_task == "PARKED" && prev_status == "IDLE")
+      {
+         PLATFORM.GoToSpeed(0);
+         PLATFORM.GoToLocation(PLATFORM.Location());
+      }
+   }
+   end_execute
+end_platform_type
+
+platform_type BLUE_ATTACK_AIRCRAFT WSF_PLATFORM
+   indestructible
+   aux_data
+      double MAX_HP = 1
+      double CURRENT_HP = 1
+      bool IS_INDESTRUCTIBLE = false
+      double LAST_DAMAGE_TIME = -1
+      double LAST_ATTACK_TIME = -1
+      double FIRE_COOLDOWN_UNTIL = 0
+      double COMBAT_LOCK_UNTIL = 0
+   end_aux_data
+   icon f15c
+   spatial_domain air
+   category AIRCRAFT
+   mover WSF_AIR_MOVER
+      default_linear_acceleration 1.0 g
+      default_radial_acceleration 4.0 g
+      default_climb_rate 50 m/s
+      maximum_climb_rate 80 m/s
+      maximum_speed 138.888889 m/s
+      minimum_altitude 0 m
+      maximum_altitude 6000 m
+      turn_rate_limit 4 deg/sec
+   end_mover
+   sensor attack_sensor WSF_GEOMETRIC_SENSOR
+      on
+      azimuth_field_of_view   -180 degrees 180 degrees
+      elevation_field_of_view -90 degrees 90 degrees
+      maximum_range           60 km
+      frame_time              1 sec
+      reports_location reports_velocity reports_range reports_bearing reports_elevation
+      ignore_same_side
+      internal_link data_mgr
+   end_sensor
+   processor data_mgr WSF_TRACK_PROCESSOR
+      master_track_processor
+   end_processor
+   track_manager
+      fusion_method weighted_average
+      end_fusion_method
+   end_track_manager
+   weapon fox3 MEDIUM_RANGE_RADAR_MISSILE quantity 1 end_weapon # air targets only
+   weapon agm BLUE_GPS_BOMB_1 quantity 1 end_weapon  # land/surface targets only
+   processor assessment WSF_UPLINK_PROCESSOR end_processor
+   aux_data
+      bool BLUE_FIGHTER_ON = true
+      string EXTERNAL_TASK = "PARKED"
+      string TASK_STATUS = "IDLE"
+      string BLUE_HOME_NAME = "blue_base"
+      string BLUE_INTERCEPT_TARGET = ""
+      string BLUE_GROUND_ATTACK_TARGET = ""
+      bool AT_HOME_BASE = false
+      double BLUE_FOX3_RANGE_M = 40000
+      double BLUE_AGM_RANGE_M = 45000
+      double BLUE_RADAR_TRACK_HOLD_SEC = 10
+      double BLUE_WEAPON_SUPPORT_UNTIL = 0
+      int CURRENT_AAM = 1
+      int CURRENT_AGM = 1
+      bool BLUE_CAP_ROLE_INITIALIZED = false
+      bool BLUE_CAP_ENABLED = false
+      string BLUE_FORCE_ROLE = "FLEX_POOL"
+      string BLUE_CAP_SLOT = "NONE"
+      int BLUE_DESIRED_CAP_COUNT = 4
+      int BLUE_CAP_INDEX = 1
+      string BLUE_CAP_POINT_1 = "25:08:00.000n 120:55:00.000e 3000m"
+      string BLUE_CAP_POINT_2 = "24:52:00.000n 121:05:00.000e 3000m"
+      double BLUE_CAP_ALTITUDE_M = 3000
+      double BLUE_CAP_SPEED_MPS = 138.888889
+      double BLUE_CAP_WAYPOINT_RADIUS_M = 4000
+      double BLUE_CAP_PATROL_DURATION_SEC = 600
+      double BLUE_CAP_SORTIE_START_TIME = -1
+      double BLUE_INTERCEPT_START_TIME = -1
+      double BLUE_INTERCEPT_MAX_DURATION_SEC = 300
+      double BLUE_MAX_PURSUIT_RADIUS_M = 100000
+   end_aux_data
+   execute at_interval_of 1 sec
+   {
+      if (!PLATFORM.AuxDataBool("BLUE_FIGHTER_ON")) { return; }
+      if (!PLATFORM.AuxDataExists("TASK_STATUS")) { PLATFORM.SetAuxData("TASK_STATUS", "IDLE"); }
+      if (!PLATFORM.AuxDataExists("EXTERNAL_TASK")) { PLATFORM.SetAuxData("EXTERNAL_TASK", "PARKED"); }
+
+      if (!PLATFORM.AuxDataBool("BLUE_CAP_ROLE_INITIALIZED"))
+      {
+         PLATFORM.SetAuxData("BLUE_CAP_ROLE_INITIALIZED", true);
+         PLATFORM.SetAuxData("BLUE_FORCE_ROLE", "FLEX_POOL");
+         PLATFORM.SetAuxData("BLUE_CAP_SLOT", "NONE");
+         PLATFORM.SetAuxData("BLUE_CAP_ENABLED", false);
+         PLATFORM.SetAuxData("EXTERNAL_TASK", "PARKED");
+         PLATFORM.SetAuxData("TASK_STATUS", "HOME_READY");
+         PLATFORM.SetAuxData("AT_HOME_BASE", true);
+         PLATFORM.SetVelocityNED(0, 0, 0);
+         PLATFORM.GoToSpeed(0);
+         PLATFORM.GoToLocation(PLATFORM.Location());
+         writeln("[BLUE_POOL] READY T=", TIME_NOW, " fighter=", PLATFORM.Name());
+      }
+
+      string status = PLATFORM.AuxDataString("TASK_STATUS");
+      WsfWeapon fox3 = PLATFORM.Weapon("fox3");
+      WsfWeapon agm = PLATFORM.Weapon("agm");
+
+      if ((status == "HOME_READY" || status == "IDLE" || status == "PARKED") &&
+          PLATFORM.AuxDataBool("AT_HOME_BASE"))
+      {
+         string openSlot = NextBlueCapSlot(PLATFORM.Name());
+         if (openSlot != "" &&
+             ((fox3.IsValid() && fox3.QuantityRemaining() > 0) ||
+              (agm.IsValid() && agm.QuantityRemaining() > 0)))
+         {
+            ConfigureBlueCapSlot(PLATFORM, openSlot);
+            PLATFORM.SetAuxData("BLUE_CAP_ENABLED", true);
+            PLATFORM.SetAuxData("EXTERNAL_TASK", "CAP_PATROL");
+            PLATFORM.SetAuxData("TASK_STATUS", "BLUE_CAP_PATROL");
+            PLATFORM.SetAuxData("BLUE_CAP_SORTIE_START_TIME", TIME_NOW);
+            PLATFORM.SetAuxData("AT_HOME_BASE", false);
+            status = "BLUE_CAP_PATROL";
+            TraceBlueCap(write_str("ASSIGN_SLOT,", TIME_NOW, ",", PLATFORM.Name(), ",", openSlot));
+            writeln("[BLUE_CAP] ASSIGN_SLOT T=", TIME_NOW,
+                    " fighter=", PLATFORM.Name(), " slot=", openSlot);
+         }
+      }
+      if (status == "BLUE_CAP_PATROL" &&
+          (!fox3.IsValid() || fox3.QuantityRemaining() <= 0) &&
+          (!agm.IsValid() || agm.QuantityRemaining() <= 0))
+      {
+         TraceBlueCap(write_str("RTB,", TIME_NOW, ",", PLATFORM.Name(), ",no_weapons"));
+         writeln("[BLUE_FIGHTER] RTB T=", TIME_NOW,
+                 " fighter=", PLATFORM.Name(), " reason=no_weapons");
+         PLATFORM.SetAuxData("TASK_STATUS", "BLUE_RTB");
+         return;
+      }
+
+      bool isPatrolCandidate = status == "BLUE_CAP_PATROL";
+      bool isReassessCandidate = status == "BLUE_REASSESS";
+      bool isHomeCandidate = (status == "HOME_READY" || status == "IDLE" || status == "PARKED") &&
+                             PLATFORM.AuxDataBool("AT_HOME_BASE");
+      string assignmentSource = "HOME";
+      if (isPatrolCandidate) { assignmentSource = "CAP"; }
+      else if (isReassessCandidate) { assignmentSource = "REASSESS"; }
+      bool knownAirTargetInPursuit = false;
+      bool knownGroundTargetInPursuit = false;
+      if (isPatrolCandidate || isReassessCandidate || isHomeCandidate)
+      {
+         WsfPlatform tgt = null;
+         double nearestAirRange = 1000000000.0;
+         for (int airIndex = 0; airIndex < RED_AIR_TARGET_NAMES.Size(); airIndex = airIndex + 1)
+         {
+            WsfPlatform candidate = WsfSimulation.FindPlatform(RED_AIR_TARGET_NAMES[airIndex]);
+            if (candidate != null && candidate.DamageFactor() < 1.0)
+            {
+               bool radarFresh = candidate.AuxDataExists("DETECTED_BY_BLUE_RADAR") &&
+                                 candidate.AuxDataBool("DETECTED_BY_BLUE_RADAR") &&
+                                 candidate.AuxDataExists("BLUE_RADAR_LAST_DETECT_TIME") &&
+                                 TIME_NOW - candidate.AuxDataDouble("BLUE_RADAR_LAST_DETECT_TIME") <=
+                                 PLATFORM.AuxDataDouble("BLUE_RADAR_TRACK_HOLD_SEC");
+               bool localFresh = (isPatrolCandidate || isReassessCandidate) &&
+                                 FindFreshAirTargetTrack(PLATFORM, candidate.Name(), 2.0).IsValid();
+               bool visibleForRole = localFresh || radarFresh;
+               bool samHasPriority = radarFresh && CanAnyBlueSamEngage(candidate);
+               bool capHasPriority = isHomeCandidate && CanBluePatrolEngage(candidate, true);
+               bool airTargetHasPendingMissile = false;
+               for (int airPendingIndex = 0; airPendingIndex < AIR_PENDING_TARGETS.Size(); airPendingIndex = airPendingIndex + 1)
+               {
+                  if (AIR_PENDING_TARGETS[airPendingIndex] == candidate.Name()) { airTargetHasPendingMissile = true; }
+               }
+               double candidateRange = PLATFORM.GroundRangeTo(candidate.Location());
+               if (visibleForRole &&
+                   candidateRange <= PLATFORM.AuxDataDouble("BLUE_MAX_PURSUIT_RADIUS_M"))
+               {
+                  knownAirTargetInPursuit = true;
+               }
+               if (visibleForRole && !samHasPriority && !capHasPriority && !airTargetHasPendingMissile &&
+                   !IsBlueAirTargetAssigned(candidate.Name(), PLATFORM.Name()) &&
+                   candidateRange <= PLATFORM.AuxDataDouble("BLUE_MAX_PURSUIT_RADIUS_M") &&
+                   candidateRange < nearestAirRange)
+               {
+                  tgt = candidate;
+                  nearestAirRange = candidateRange;
+               }
+            }
+         }
+
+         if (tgt != null && BLUE_OFFENSIVE_ACTIONS_ENABLED &&
+             fox3.IsValid() && fox3.QuantityRemaining() > 0)
+         {
+            PLATFORM.SetAuxData("BLUE_CAP_SLOT", "NONE");
+            PLATFORM.SetAuxData("BLUE_CAP_ENABLED", false);
+            PLATFORM.SetAuxData("EXTERNAL_TASK", "INTERCEPT");
+            PLATFORM.SetAuxData("TASK_STATUS", "BLUE_INTERCEPT");
+            PLATFORM.SetAuxData("BLUE_INTERCEPT_TARGET", tgt.Name());
+            PLATFORM.SetAuxData("BLUE_INTERCEPT_START_TIME", TIME_NOW);
+            PLATFORM.SetAuxData("AT_HOME_BASE", false);
+            status = "BLUE_INTERCEPT";
+            TraceBlueCap(write_str("ASSIGN_AIR,", TIME_NOW, ",", PLATFORM.Name(), ",", assignmentSource, ",", tgt.Name()));
+            writeln("[BLUE_FIGHTER] ASSIGN_AIR T=", TIME_NOW,
+                    " fighter=", PLATFORM.Name(), " source=", assignmentSource,
+                    " target=", tgt.Name(), " range=", nearestAirRange);
+         }
+
+         status = PLATFORM.AuxDataString("TASK_STATUS");
+         isPatrolCandidate = status == "BLUE_CAP_PATROL";
+         isReassessCandidate = status == "BLUE_REASSESS";
+         isHomeCandidate = (status == "HOME_READY" || status == "IDLE" || status == "PARKED") &&
+                           PLATFORM.AuxDataBool("AT_HOME_BASE");
+         assignmentSource = "HOME";
+         if (isPatrolCandidate) { assignmentSource = "CAP"; }
+      else if (isReassessCandidate) { assignmentSource = "REASSESS"; }
+         {
+            WsfPlatform groundTgt = null;
+            double nearestGroundRange = 1000000000.0;
+            for (int groundIndex = 0; groundIndex < RED_GROUND_NAMES.Size(); groundIndex = groundIndex + 1)
+            {
+               WsfPlatform candidateGround = WsfSimulation.FindPlatform(RED_GROUND_NAMES[groundIndex]);
+               if (candidateGround != null && candidateGround.DamageFactor() < 1.0 &&
+                   !IsProtectedTransportPhaseTarget(candidateGround))
+               {
+                  bool groundIntelFresh = candidateGround.AuxDataExists("DETECTED_BY_BLUE_GROUND") &&
+                                          candidateGround.AuxDataBool("DETECTED_BY_BLUE_GROUND");
+                  bool localGroundFresh = (isPatrolCandidate || isReassessCandidate) &&
+                     FindFreshGroundTargetTrack(PLATFORM, candidateGround.Name(), 2.0).IsValid();
+                  bool visibleGroundForRole = localGroundFresh || groundIntelFresh;
+                  bool capGroundHasPriority = isHomeCandidate && CanBluePatrolEngage(candidateGround, false);
+                  bool targetAssignedToAir = candidateGround.AuxDataExists("BLUE_AIR_ASSIGNED") &&
+                                             candidateGround.AuxDataBool("BLUE_AIR_ASSIGNED") &&
+                                             candidateGround.AuxDataExists("BLUE_AIR_ASSIGNED_TIME") &&
+                                             TIME_NOW - candidateGround.AuxDataDouble("BLUE_AIR_ASSIGNED_TIME") < 300.0;
+                  bool targetHasPendingShot = false;
+                  for (int pendingIndex = 0; pendingIndex < AIR_PENDING_TARGETS.Size(); pendingIndex = pendingIndex + 1)
+                  {
+                     if (AIR_PENDING_TARGETS[pendingIndex] == candidateGround.Name()) { targetHasPendingShot = true; }
+                  }
+                  for (int groundPendingIndex = 0; groundPendingIndex < GROUND_PENDING_TARGETS.Size(); groundPendingIndex = groundPendingIndex + 1)
+                  {
+                     if (GROUND_PENDING_TARGETS[groundPendingIndex] == candidateGround.Name()) { targetHasPendingShot = true; }
+                  }
+                  double groundRange = PLATFORM.GroundRangeTo(candidateGround.Location());
+                  if (visibleGroundForRole &&
+                      groundRange <= PLATFORM.AuxDataDouble("BLUE_MAX_PURSUIT_RADIUS_M"))
+                  {
+                     knownGroundTargetInPursuit = true;
+                  }
+                  if (visibleGroundForRole && !capGroundHasPriority && !targetAssignedToAir && !targetHasPendingShot &&
+                      groundRange <= PLATFORM.AuxDataDouble("BLUE_MAX_PURSUIT_RADIUS_M") &&
+                      groundRange < nearestGroundRange)
+                  {
+                     groundTgt = candidateGround;
+                     nearestGroundRange = groundRange;
+                  }
+               }
+            }
+
+            if (groundTgt != null && BLUE_OFFENSIVE_ACTIONS_ENABLED &&
+                agm.IsValid() && agm.QuantityRemaining() > 0)
+            {
+               groundTgt.SetAuxData("BLUE_AIR_ASSIGNED", true);
+               groundTgt.SetAuxData("BLUE_AIR_ASSIGNED_TIME", TIME_NOW);
+               groundTgt.SetAuxData("BLUE_AIR_ASSIGNED_BY", PLATFORM.Name());
+               PLATFORM.SetAuxData("BLUE_CAP_SLOT", "NONE");
+               PLATFORM.SetAuxData("BLUE_CAP_ENABLED", false);
+               PLATFORM.SetAuxData("EXTERNAL_TASK", "GROUND_ATTACK");
+               PLATFORM.SetAuxData("TASK_STATUS", "BLUE_GROUND_ATTACK");
+               PLATFORM.SetAuxData("BLUE_GROUND_ATTACK_TARGET", groundTgt.Name());
+               PLATFORM.SetAuxData("AT_HOME_BASE", false);
+               status = "BLUE_GROUND_ATTACK";
+               TraceBlueCap(write_str("ASSIGN_GROUND,", TIME_NOW, ",", PLATFORM.Name(), ",", assignmentSource, ",", groundTgt.Name()));
+               writeln("[BLUE_ATTACK] ASSIGN_GROUND T=", TIME_NOW,
+                       " fighter=", PLATFORM.Name(), " source=", assignmentSource,
+                       " target=", groundTgt.Name(), " range=", nearestGroundRange);
+            }
+         }
+      }
+      status = PLATFORM.AuxDataString("TASK_STATUS");
+      // CAP must not continue toward patrol waypoints when it has discovered
+      // nearby threats but has no weapon compatible with any of them.
+      bool hasMatchingWeaponForKnownTarget =
+         (knownAirTargetInPursuit && fox3.IsValid() && fox3.QuantityRemaining() > 0) ||
+         (knownGroundTargetInPursuit && agm.IsValid() && agm.QuantityRemaining() > 0);
+      if (PLATFORM.AuxDataString("TASK_STATUS") == "BLUE_CAP_PATROL" &&
+          (knownAirTargetInPursuit || knownGroundTargetInPursuit) &&
+          !hasMatchingWeaponForKnownTarget)
+      {
+         TraceBlueCap(write_str("RTB,", TIME_NOW, ",", PLATFORM.Name(), ",no_matching_weapon_for_known_targets"));
+         writeln("[BLUE_FIGHTER] RTB T=", TIME_NOW,
+                 " fighter=", PLATFORM.Name(),
+                 " reason=no_matching_weapon_for_known_targets");
+         PLATFORM.SetAuxData("TASK_STATUS", "BLUE_RTB");
+         return;
+      }
+
+      if (status == "BLUE_REASSESS")
+      {
+         TraceBlueCap(write_str("RTB,", TIME_NOW, ",", PLATFORM.Name(), ",no_attackable_target_after_fire"));
+         writeln("[BLUE_FIGHTER] RTB T=", TIME_NOW,
+                 " fighter=", PLATFORM.Name(), " reason=no_attackable_target_after_fire");
+         PLATFORM.SetAuxData("TASK_STATUS", "BLUE_RTB");
+         return;
+      }
+      status = PLATFORM.AuxDataString("TASK_STATUS");
+      if ((status == "IDLE" || status == "PARKED") && PLATFORM.AuxDataBool("BLUE_CAP_ENABLED"))
+      {
+         PLATFORM.SetAuxData("EXTERNAL_TASK", "CAP_PATROL");
+         PLATFORM.SetAuxData("TASK_STATUS", "BLUE_CAP_PATROL");
+         PLATFORM.SetAuxData("BLUE_CAP_SORTIE_START_TIME", TIME_NOW);
+         PLATFORM.SetAuxData("AT_HOME_BASE", false);
+         writeln("[BLUE_CAP] START T=", TIME_NOW,
+                 " fighter=", PLATFORM.Name());
+      }
+
+      status = PLATFORM.AuxDataString("TASK_STATUS");
+      if (status == "BLUE_CAP_PATROL")
+      {
+         if (PLATFORM.AuxDataDouble("BLUE_CAP_SORTIE_START_TIME") < 0.0)
+         {
+            PLATFORM.SetAuxData("BLUE_CAP_SORTIE_START_TIME", TIME_NOW);
+         }
+         if (TIME_NOW - PLATFORM.AuxDataDouble("BLUE_CAP_SORTIE_START_TIME") >=
+             PLATFORM.AuxDataDouble("BLUE_CAP_PATROL_DURATION_SEC"))
+         {
+            writeln("[BLUE_CAP] RTB T=", TIME_NOW,
+                    " fighter=", PLATFORM.Name(),
+                    " reason=patrol_complete elapsed=",
+                    TIME_NOW - PLATFORM.AuxDataDouble("BLUE_CAP_SORTIE_START_TIME"));
+            PLATFORM.SetAuxData("BLUE_CAP_SLOT", "NONE");
+            PLATFORM.SetAuxData("BLUE_CAP_ENABLED", false);
+            PLATFORM.SetAuxData("TASK_STATUS", "BLUE_RTB");
+            return;
+         }
+         string capPointString = PLATFORM.AuxDataString("BLUE_CAP_POINT_1");
+         if (PLATFORM.AuxDataInt("BLUE_CAP_INDEX") == 2)
+         {
+            capPointString = PLATFORM.AuxDataString("BLUE_CAP_POINT_2");
+         }
+         WsfGeoPoint capPoint = WsfGeoPoint.Construct(capPointString);
+         PLATFORM.GoToAltitude(PLATFORM.AuxDataDouble("BLUE_CAP_ALTITUDE_M"));
+         PLATFORM.GoToSpeed(PLATFORM.AuxDataDouble("BLUE_CAP_SPEED_MPS"));
+         PLATFORM.GoToLocation(capPoint);
+         if (PLATFORM.GroundRangeTo(capPoint) <= PLATFORM.AuxDataDouble("BLUE_CAP_WAYPOINT_RADIUS_M"))
+         {
+            int nextIndex = 1;
+            if (PLATFORM.AuxDataInt("BLUE_CAP_INDEX") == 1) { nextIndex = 2; }
+            PLATFORM.SetAuxData("BLUE_CAP_INDEX", nextIndex);
+            writeln("[BLUE_CAP] TURN T=", TIME_NOW,
+                    " fighter=", PLATFORM.Name(),
+                    " next=", nextIndex);
+         }
+      }
+
+      status = PLATFORM.AuxDataString("TASK_STATUS");
+      if (status == "BLUE_INTERCEPT")
+      {
+         string targetName = PLATFORM.AuxDataString("BLUE_INTERCEPT_TARGET");
+         WsfPlatform tgt = WsfSimulation.FindPlatform(targetName);
+         if (tgt == null || tgt.DamageFactor() >= 1.0)
+         {
+            writeln("[BLUE_FIGHTER] RTB T=", TIME_NOW,
+                    " fighter=", PLATFORM.Name(),
+                    " reason=target_gone target=", targetName);
+            PLATFORM.SetAuxData("TASK_STATUS", "BLUE_RTB");
+            return;
+         }
+
+         bool interceptLocalTrackFresh = FindFreshAirTargetTrack(PLATFORM, targetName, 2.0).IsValid();
+         bool interceptRadarTrackFresh = tgt.AuxDataExists("DETECTED_BY_BLUE_RADAR") &&
+                                         tgt.AuxDataBool("DETECTED_BY_BLUE_RADAR") &&
+                                         tgt.AuxDataExists("BLUE_RADAR_LAST_DETECT_TIME") &&
+                                         TIME_NOW - tgt.AuxDataDouble("BLUE_RADAR_LAST_DETECT_TIME") <=
+                                         PLATFORM.AuxDataDouble("BLUE_RADAR_TRACK_HOLD_SEC");
+         bool interceptTrackFresh = interceptLocalTrackFresh || interceptRadarTrackFresh;
+         if (!interceptTrackFresh)
+         {
+            writeln("[BLUE_FIGHTER] RTB T=", TIME_NOW,
+                    " fighter=", PLATFORM.Name(),
+                    " reason=track_lost target=", targetName);
+            PLATFORM.SetAuxData("TASK_STATUS", "BLUE_RTB");
+            return;
+         }
+
+         if (PLATFORM.AuxDataDouble("BLUE_INTERCEPT_START_TIME") < 0.0)
+         {
+            PLATFORM.SetAuxData("BLUE_INTERCEPT_START_TIME", TIME_NOW);
+         }
+         if (TIME_NOW - PLATFORM.AuxDataDouble("BLUE_INTERCEPT_START_TIME") >=
+             PLATFORM.AuxDataDouble("BLUE_INTERCEPT_MAX_DURATION_SEC"))
+         {
+            writeln("[BLUE_FIGHTER] RTB T=", TIME_NOW,
+                    " fighter=", PLATFORM.Name(),
+                    " reason=intercept_timeout target=", targetName,
+                    " elapsed=", TIME_NOW - PLATFORM.AuxDataDouble("BLUE_INTERCEPT_START_TIME"));
+            PLATFORM.SetAuxData("TASK_STATUS", "BLUE_RTB");
+            return;
+         }
+
+         WsfPlatform interceptHome = WsfSimulation.FindPlatform(PLATFORM.AuxDataString("BLUE_HOME_NAME"));
+         if (interceptHome != null &&
+             PLATFORM.GroundRangeTo(interceptHome.Location()) >=
+             PLATFORM.AuxDataDouble("BLUE_MAX_PURSUIT_RADIUS_M"))
+         {
+            TraceBlueCap(write_str("RTB,", TIME_NOW, ",", PLATFORM.Name(), ",pursuit_boundary"));
+            writeln("[BLUE_FIGHTER] RTB T=", TIME_NOW,
+                    " fighter=", PLATFORM.Name(),
+                    " reason=pursuit_boundary target=", targetName,
+                    " home_range=", PLATFORM.GroundRangeTo(interceptHome.Location()));
+            PLATFORM.SetAuxData("TASK_STATUS", "BLUE_RTB");
+            return;
+         }
+
+         bool targetHasPendingMissile = false;
+         for (int i = 0; i < AIR_PENDING_TARGETS.Size(); i = i + 1)
+         {
+            if (AIR_PENDING_TARGETS[i] == targetName)
+            {
+               targetHasPendingMissile = true;
+            }
+         }
+         if (targetHasPendingMissile)
+         {
+            writeln("[BLUE_FIGHTER] RTB T=", TIME_NOW,
+                    " fighter=", PLATFORM.Name(),
+                    " reason=target_already_engaged target=", targetName);
+            PLATFORM.SetAuxData("TASK_STATUS", "BLUE_RTB");
+            return;
+         }
+
+         PLATFORM.GoToSpeed(138.888889);
+         PLATFORM.GoToLocation(tgt.Location());
+         PLATFORM.GoToAltitude(6000, 50.0);
+
+         double range = PLATFORM.SlantRangeTo(tgt);
+         if (BLUE_OFFENSIVE_ACTIONS_ENABLED &&
+             fox3.IsValid() && fox3.QuantityRemaining() > 0 &&
+             range <= PLATFORM.AuxDataDouble("BLUE_FOX3_RANGE_M") && PLATFORM.Altitude() >= 3000.0)
+         {
+            WsfGeoPoint aimPoint = tgt.Location();
+            WsfTrack targetTrack = FindFreshAirTargetTrack(PLATFORM, targetName, 2.0);
+            if (!targetTrack.IsValid() && tgt.AuxDataExists("BLUE_RADAR_DETECTED_BY"))
+            {
+               WsfPlatform trackRadar = WsfSimulation.FindPlatform(tgt.AuxDataString("BLUE_RADAR_DETECTED_BY"));
+               targetTrack = FindFreshAirTargetTrack(trackRadar, targetName, 2.0);
+            }
+            double targetTrackAge = -1.0;
+            bool targetVelocityValid = false;
+            bool fired = false;
+            if (targetTrack.IsValid())
+            {
+               targetTrackAge = targetTrack.TimeSinceUpdated();
+               targetVelocityValid = targetTrack.VelocityValid();
+               if (targetVelocityValid)
+               {
+                  fired = fox3.Fire(targetTrack);
+               }
+            }
+            if (fired)
+            {
+               AIR_PENDING_SHOOTERS.PushBack(PLATFORM.Name());
+               AIR_PENDING_TARGETS.PushBack(targetName);
+               AIR_PENDING_WEAPONS.PushBack("blue_fox3");
+               AIR_PENDING_PLATFORM_NAMES.PushBack(PLATFORM.AuxDataString("LAST_WEAPON_PLATFORM_NAME"));
+               AIR_PENDING_HIT_TIMES.PushBack(TIME_NOW + 125.0);
+               AIR_PENDING_AIM_LATS.PushBack(aimPoint.Latitude());
+               AIR_PENDING_AIM_LONS.PushBack(aimPoint.Longitude());
+
+               AIR_PENDING_LAUNCH_TIMES.PushBack(TIME_NOW);
+
+               AIR_PENDING_START_LATS.PushBack(PLATFORM.Location().Latitude());
+
+               AIR_PENDING_START_LONS.PushBack(PLATFORM.Location().Longitude());
+               TraceBlueCap(write_str("FIRE_AAM,", TIME_NOW, ",", PLATFORM.Name(), ",", targetName));
+               PLATFORM.SetAuxData("CURRENT_AAM", (int)fox3.QuantityRemaining());
+               if ((fox3.IsValid() && fox3.QuantityRemaining() > 0) ||
+                   (agm.IsValid() && agm.QuantityRemaining() > 0))
+               {
+                  PLATFORM.SetAuxData("BLUE_INTERCEPT_TARGET", "");
+                  PLATFORM.SetAuxData("TASK_STATUS", "BLUE_REASSESS");
+               }
+               else
+               {
+                  TraceBlueCap(write_str("RTB,", TIME_NOW, ",", PLATFORM.Name(), ",all_weapons_expended"));
+                  writeln("[BLUE_FIGHTER] RTB T=", TIME_NOW,
+                          " fighter=", PLATFORM.Name(),
+                          " reason=all_weapons_expended target=", targetName);
+                  PLATFORM.SetAuxData("TASK_STATUS", "BLUE_RTB");
+               }
+               return;
+            }
+         }
+         else if (!fox3.IsValid() || fox3.QuantityRemaining() <= 0)
+         {
+            writeln("[BLUE_FIGHTER] RTB T=", TIME_NOW,
+                    " fighter=", PLATFORM.Name(),
+                    " reason=no_aam target=", targetName);
+            PLATFORM.SetAuxData("TASK_STATUS", "BLUE_RTB");
+            return;
+         }
+      }
+
+      status = PLATFORM.AuxDataString("TASK_STATUS");
+      if (status == "BLUE_WEAPON_SUPPORT")
+      {
+         string supportTargetName = PLATFORM.AuxDataString("BLUE_INTERCEPT_TARGET");
+         WsfPlatform supportTarget = WsfSimulation.FindPlatform(supportTargetName);
+         if (supportTarget != null &&
+             supportTarget.DamageFactor() < 1.0 &&
+             TIME_NOW < PLATFORM.AuxDataDouble("BLUE_WEAPON_SUPPORT_UNTIL"))
+         {
+            PLATFORM.GoToSpeed(138.888889);
+            PLATFORM.GoToLocation(supportTarget.Location());
+            PLATFORM.GoToAltitude(6000, 50.0);
+            return;
+         }
+         PLATFORM.SetAuxData("TASK_STATUS", "BLUE_RTB");
+         return;
+      }
+
+      if (status == "BLUE_GROUND_ATTACK")
+      {
+         string targetName = PLATFORM.AuxDataString("BLUE_GROUND_ATTACK_TARGET");
+         WsfPlatform tgt = WsfSimulation.FindPlatform(targetName);
+         if (tgt == null || tgt.DamageFactor() >= 1.0 || IsProtectedTransportPhaseTarget(tgt))
+         {
+            writeln("[BLUE_ATTACK] RTB T=", TIME_NOW,
+                    " fighter=", PLATFORM.Name(),
+                    " reason=ground_target_gone_or_protected target=", targetName);
+            PLATFORM.SetAuxData("TASK_STATUS", "BLUE_RTB");
+            return;
+         }
+
+         bool targetHasPendingShot = false;
+         for (int i = 0; i < AIR_PENDING_TARGETS.Size(); i = i + 1)
+         {
+            if (AIR_PENDING_TARGETS[i] == targetName)
+            {
+               targetHasPendingShot = true;
+            }
+         }
+         for (int j = 0; j < GROUND_PENDING_TARGETS.Size(); j = j + 1)
+         {
+            if (GROUND_PENDING_TARGETS[j] == targetName)
+            {
+               targetHasPendingShot = true;
+            }
+         }
+         if (targetHasPendingShot)
+         {
+            writeln("[BLUE_ATTACK] RTB T=", TIME_NOW,
+                    " fighter=", PLATFORM.Name(),
+                    " reason=ground_target_already_engaged target=", targetName);
+            PLATFORM.SetAuxData("TASK_STATUS", "BLUE_RTB");
+            return;
+         }
+
+         PLATFORM.GoToSpeed(138.888889);
+         PLATFORM.GoToLocation(tgt.Location());
+         PLATFORM.GoToAltitude(6000, 50.0);
+
+         double range = PLATFORM.SlantRangeTo(tgt);
+         if (BLUE_OFFENSIVE_ACTIONS_ENABLED &&
+             agm.IsValid() && agm.QuantityRemaining() > 0 &&
+             range <= PLATFORM.AuxDataDouble("BLUE_AGM_RANGE_M") && PLATFORM.Altitude() >= 3000.0)
+         {
+            WsfGeoPoint aimPoint = tgt.Location();
+            aimPoint.SetAltitudeAGL(10.0);
+            bool fired = agm.FireAtLocation(aimPoint);
+            if (fired)
+            {
+               AIR_PENDING_SHOOTERS.PushBack(PLATFORM.Name());
+               AIR_PENDING_TARGETS.PushBack(targetName);
+               AIR_PENDING_WEAPONS.PushBack("blue_agm");
+               AIR_PENDING_PLATFORM_NAMES.PushBack(PLATFORM.AuxDataString("LAST_WEAPON_PLATFORM_NAME"));
+               AIR_PENDING_HIT_TIMES.PushBack(TIME_NOW + MATH.Max(10.0, range / 300.0));
+               AIR_PENDING_AIM_LATS.PushBack(aimPoint.Latitude());
+               AIR_PENDING_AIM_LONS.PushBack(aimPoint.Longitude());
+
+               AIR_PENDING_LAUNCH_TIMES.PushBack(TIME_NOW);
+
+               AIR_PENDING_START_LATS.PushBack(PLATFORM.Location().Latitude());
+
+               AIR_PENDING_START_LONS.PushBack(PLATFORM.Location().Longitude());
+               TraceBlueCap(write_str("FIRE_AGM,", TIME_NOW, ",", PLATFORM.Name(), ",", targetName));
+               PLATFORM.SetAuxData("CURRENT_AGM", (int)agm.QuantityRemaining());
+               if ((fox3.IsValid() && fox3.QuantityRemaining() > 0) ||
+                   (agm.IsValid() && agm.QuantityRemaining() > 0))
+               {
+                  PLATFORM.SetAuxData("BLUE_GROUND_ATTACK_TARGET", "");
+                  PLATFORM.SetAuxData("TASK_STATUS", "BLUE_REASSESS");
+               }
+               else
+               {
+                  TraceBlueCap(write_str("RTB,", TIME_NOW, ",", PLATFORM.Name(), ",all_weapons_expended"));
+                  PLATFORM.SetAuxData("TASK_STATUS", "BLUE_RTB");
+               }
+               return;
+            }
+         }
+         else if (!agm.IsValid() || agm.QuantityRemaining() <= 0)
+         {
+            writeln("[BLUE_ATTACK] RTB T=", TIME_NOW,
+                    " fighter=", PLATFORM.Name(),
+                    " reason=no_agm target=", targetName);
+            PLATFORM.SetAuxData("TASK_STATUS", "BLUE_RTB");
+            return;
+         }
+      }
+
+      status = PLATFORM.AuxDataString("TASK_STATUS");
+      if (status == "BLUE_RTB")
+      {
+         PLATFORM.SetAuxData("BLUE_CAP_SLOT", "NONE");
+         PLATFORM.SetAuxData("BLUE_CAP_ENABLED", false);
+         WsfPlatform home = WsfSimulation.FindPlatform(PLATFORM.AuxDataString("BLUE_HOME_NAME"));
+         if (home != null)
+         {
+            PLATFORM.GoToAltitude(6000);
+            PLATFORM.GoToSpeed(138.888889);
+            PLATFORM.GoToLocation(home.Location());
+            if (PLATFORM.GroundRangeTo(home.Location()) < 3000)
+            {
+               PLATFORM.SetLocation(home.Location());
+               PLATFORM.SetVelocityNED(0, 0, 0);
+               PLATFORM.GoToSpeed(0);
+               PLATFORM.GoToLocation(PLATFORM.Location());
+               PLATFORM.SetAuxData("EXTERNAL_TASK", "REARMING");
+               PLATFORM.SetAuxData("TASK_STATUS", "BLUE_REARMING");
+               PLATFORM.SetAuxData("REARM_START_TIME", TIME_NOW);
+               PLATFORM.SetAuxData("REARM_COMPLETE_TIME", TIME_NOW + 600.0);
+               PLATFORM.SetAuxData("AT_HOME_BASE", true);
+               PLATFORM.SetAuxData("BLUE_CAP_SORTIE_START_TIME", -1.0);
+               PLATFORM.SetAuxData("BLUE_INTERCEPT_START_TIME", -1.0);
+               PLATFORM.SetAuxData("BLUE_INTERCEPT_TARGET", "");
+               PLATFORM.SetAuxData("BLUE_GROUND_ATTACK_TARGET", "");
+               writeln("[BLUE_FIGHTER] REARM_START T=", TIME_NOW,
+                       " fighter=", PLATFORM.Name(),
+                       " home=", home.Name(),
+                       " complete_at=", TIME_NOW + 600.0);
+            }
+         }
+      }
+
+      status = PLATFORM.AuxDataString("TASK_STATUS");
+      if (status == "BLUE_REARMING")
+      {
+         WsfPlatform home = WsfSimulation.FindPlatform(PLATFORM.AuxDataString("BLUE_HOME_NAME"));
+         if (home != null) { PLATFORM.SetLocation(home.Location()); }
+         PLATFORM.SetVelocityNED(0, 0, 0);
+         PLATFORM.GoToSpeed(0);
+         PLATFORM.GoToLocation(PLATFORM.Location());
+         if (home != null && TIME_NOW >= PLATFORM.AuxDataDouble("REARM_COMPLETE_TIME"))
+         {
+            if (fox3.IsValid()) { fox3.SetQuantityRemaining(1); }
+            if (agm.IsValid()) { agm.SetQuantityRemaining(1); }
+            PLATFORM.SetAuxData("CURRENT_AAM", 1);
+            PLATFORM.SetAuxData("CURRENT_AGM", 1);
+            PLATFORM.SetAuxData("BLUE_CAP_ENABLED", false);
+            PLATFORM.SetAuxData("BLUE_CAP_SLOT", "NONE");
+            PLATFORM.SetAuxData("BLUE_FORCE_ROLE", "FLEX_POOL");
+            PLATFORM.SetAuxData("EXTERNAL_TASK", "PARKED");
+            PLATFORM.SetAuxData("TASK_STATUS", "HOME_READY");
+            PLATFORM.SetAuxData("AT_HOME_BASE", true);
+            writeln("[BLUE_FIGHTER] REARM_COMPLETE T=", TIME_NOW,
+                    " fighter=", PLATFORM.Name(),
+                    " home=", home.Name(),
+                    " current_aam=1 current_agm=1");
+         }
+      }
+   }
+   end_execute
+end_platform_type
+
+platform_type RED_TRANSPORT_SHIP WSF_PLATFORM
+   icon ship spatial_domain surface category SHIP indestructible
+   aux_data
+      double MAX_HP = 0
+      double CURRENT_HP = 0
+      bool IS_INDESTRUCTIBLE = true
+   end_aux_data
+   mover WSF_AIR_MOVER
+      default_linear_acceleration 1.0 g
+      maximum_speed 13.888889 m/s
+   end_mover
+   processor assessment WSF_UPLINK_PROCESSOR end_processor
+   execute at_interval_of 1 sec
+   {
+      if (!PLATFORM.AuxDataExists("EXTERNAL_TASK")) { PLATFORM.SetAuxData("EXTERNAL_TASK", "PARKED"); }
+      if (!PLATFORM.AuxDataExists("TASK_STATUS")) { PLATFORM.SetAuxData("TASK_STATUS", "IDLE"); }
+      if (!PLATFORM.AuxDataExists("LANDING_RADIUS_M")) { PLATFORM.SetAuxData("LANDING_RADIUS_M", 350.0); }
+      if (!PLATFORM.AuxDataExists("LANDING_ARRIVAL_TOLERANCE_M")) { PLATFORM.SetAuxData("LANDING_ARRIVAL_TOLERANCE_M", 200.0); }
+      if (!PLATFORM.AuxDataExists("ARMY_UNITS_REMAINING")) { PLATFORM.SetAuxData("ARMY_UNITS_REMAINING", 3); }
+
+      string ext_task = PLATFORM.AuxDataString("EXTERNAL_TASK");
+      string prev_status = PLATFORM.AuxDataString("TASK_STATUS");
+      double commandedSpeed = 6.0;
+      if (PLATFORM.AuxDataExists("COMMAND_SPEED_MPS")) { commandedSpeed = PLATFORM.AuxDataDouble("COMMAND_SPEED_MPS"); }
+      if (commandedSpeed < 2.0) { commandedSpeed = 2.0; }
+      if (commandedSpeed > 13.888889) { commandedSpeed = 13.888889; }
+
+      if (PLATFORM.AuxDataExists("ARMY_LANDED") && PLATFORM.AuxDataBool("ARMY_LANDED") &&
+          (ext_task == "LANDING_MOVE_POINT" || ext_task == "LANDING_RETURN_WAIT" ||
+           ext_task == "LANDING_UNLOAD" || ext_task == "TRANSPORT"))
+      {
+         writeln("[RED_TRANSPORT] TASK_REJECTED T=", TIME_NOW,
+                 " transport=", PLATFORM.Name(),
+                 " task=", ext_task,
+                 " reason=army_already_landed");
+         PLATFORM.GoToSpeed(0);
+         PLATFORM.GoToLocation(PLATFORM.Location());
+         PLATFORM.SetAuxData("EXTERNAL_TASK", "LANDING_COMPLETE");
+         PLATFORM.SetAuxData("TASK_STATUS", "IDLE");
+         return;
+      }
+
+      if (ext_task == "LANDING_COMPLETE")
+      {
+         PLATFORM.GoToSpeed(0);
+         PLATFORM.GoToLocation(PLATFORM.Location());
+      }
+
+      if (ext_task == "LANDING_HOLD")
+      {
+         PLATFORM.SetVelocityNED(0, 0, 0);
+         PLATFORM.GoToSpeed(0);
+         PLATFORM.GoToLocation(PLATFORM.Location());
+         PLATFORM.SetAuxData("TASK_STATUS", "LANDING_LOITER");
+      }
+
+      if (ext_task == "LANDING_MOVE_POINT" &&
+          (prev_status == "IDLE" || prev_status == "LANDING_LOITER" || prev_status == "LANDING_RETURNING"))
+      {
+         writeln("[RED_TRANSPORT] MOVE_START T=", TIME_NOW,
+                 " transport=", PLATFORM.Name(),
+                 " task=LANDING_MOVE_POINT",
+                 " previous_status=", prev_status,
+                 " move_pos=", PLATFORM.AuxDataString("LANDING_MOVE_POS"),
+                 " commanded_speed_mps=", commandedSpeed,
+                 " has_army=", PLATFORM.AuxDataBool("HAS_ARMY"));
+         PLATFORM.SetAuxData("TASK_STATUS", "LANDING_MOVING");
+      }
+      if (prev_status == "LANDING_MOVING" || (prev_status == "ACK" && ext_task == "LANDING_MOVE_POINT"))
+      {
+         PLATFORM.GoToSpeed(commandedSpeed);
+         WsfGeoPoint target = WsfGeoPoint.Construct(PLATFORM.AuxDataString("LANDING_MOVE_POS"));
+         if (!IsLandingSeaRoute(PLATFORM, target))
+         {
+            writeln("[RED_TRANSPORT] MOVE_REJECTED T=", TIME_NOW,
+                    " transport=", PLATFORM.Name(),
+                    " task=LANDING_MOVE_POINT",
+                    " reason=land_intersection");
+            PLATFORM.GoToSpeed(0);
+            PLATFORM.GoToLocation(PLATFORM.Location());
+            PLATFORM.SetAuxData("EXTERNAL_TASK", "LANDING_HOLD");
+            PLATFORM.SetAuxData("TASK_STATUS", "IDLE");
+         }
+         else
+         {
+            PLATFORM.TurnToHeading(PLATFORM.TrueBearingTo(target));
+            if (PLATFORM.GroundRangeTo(target) < 50)
+            {
+               writeln("[RED_TRANSPORT] MOVE_ARRIVED T=", TIME_NOW,
+                       " transport=", PLATFORM.Name(),
+                       " task=LANDING_MOVE_POINT",
+                       " range=", PLATFORM.GroundRangeTo(target));
+               PLATFORM.SetVelocityNED(0, 0, 0);
+               PLATFORM.GoToSpeed(0);
+               PLATFORM.GoToLocation(PLATFORM.Location());
+               PLATFORM.SetAuxData("EXTERNAL_TASK", "LANDING_HOLD");
+               PLATFORM.SetAuxData("TASK_STATUS", "LANDING_LOITER");
+            }
+         }
+      }
+
+      if (ext_task == "LANDING_RETURN_WAIT" &&
+          (prev_status == "IDLE" || prev_status == "LANDING_LOITER" || prev_status == "LANDING_MOVING"))
+      {
+         writeln("[RED_TRANSPORT] RETURN_START T=", TIME_NOW,
+                 " transport=", PLATFORM.Name(),
+                 " task=LANDING_RETURN_WAIT",
+                 " previous_status=", prev_status,
+                 " move_pos=", PLATFORM.AuxDataString("LANDING_MOVE_POS"),
+                 " commanded_speed_mps=", commandedSpeed);
+         PLATFORM.SetAuxData("TASK_STATUS", "LANDING_RETURNING");
+      }
+      if (prev_status == "LANDING_RETURNING" || (prev_status == "ACK" && ext_task == "LANDING_RETURN_WAIT"))
+      {
+         PLATFORM.GoToSpeed(commandedSpeed);
+         WsfGeoPoint waitPoint = WsfGeoPoint.Construct(PLATFORM.AuxDataString("LANDING_MOVE_POS"));
+         if (!IsLandingSeaRoute(PLATFORM, waitPoint))
+         {
+            writeln("[RED_TRANSPORT] RETURN_REJECTED T=", TIME_NOW,
+                    " transport=", PLATFORM.Name(),
+                    " task=LANDING_RETURN_WAIT",
+                    " reason=land_intersection");
+            PLATFORM.GoToSpeed(0);
+            PLATFORM.GoToLocation(PLATFORM.Location());
+            PLATFORM.SetAuxData("EXTERNAL_TASK", "LANDING_HOLD");
+            PLATFORM.SetAuxData("TASK_STATUS", "IDLE");
+         }
+         else
+         {
+            PLATFORM.TurnToHeading(PLATFORM.TrueBearingTo(waitPoint));
+            if (PLATFORM.GroundRangeTo(waitPoint) < 500)
+            {
+               writeln("[RED_TRANSPORT] RETURN_ARRIVED T=", TIME_NOW,
+                       " transport=", PLATFORM.Name(),
+                       " task=LANDING_RETURN_WAIT",
+                       " range=", PLATFORM.GroundRangeTo(waitPoint));
+               PLATFORM.SetVelocityNED(0, 0, 0);
+               PLATFORM.GoToSpeed(0);
+               PLATFORM.GoToLocation(PLATFORM.Location());
+               PLATFORM.SetAuxData("EXTERNAL_TASK", "LANDING_HOLD");
+               PLATFORM.SetAuxData("TASK_STATUS", "LANDING_LOITER");
+            }
+         }
+      }
+
+      if (ext_task == "LANDING_UNLOAD" && prev_status == "IDLE")
+      {
+         if (PLATFORM.AuxDataExists("HAS_ARMY") && !PLATFORM.AuxDataBool("HAS_ARMY"))
+         {
+            writeln("[RED_TRANSPORT] UNLOAD_REJECTED T=", TIME_NOW,
+                    " transport=", PLATFORM.Name(),
+                    " reason=no_army_onboard");
+            PLATFORM.SetAuxData("EXTERNAL_TASK", "LANDING_HOLD");
+            PLATFORM.SetAuxData("TASK_STATUS", "IDLE");
+         }
+         else
+         {
+            WsfGeoPoint unloadPoint = PLATFORM.Location();
+            WsfGeoPoint berthPoint = PLATFORM.Location();
+            double landingDistance = 1.0e12;
+            double berthDistance = 1.0e12;
+            bool stationary = PLATFORM.GroundSpeed() <= 1.0;
+            bool canUnload = PLATFORM.AuxDataExists("LANDING_POS") &&
+                             PLATFORM.AuxDataExists("LANDING_BERTH_POS") &&
+                             PLATFORM.AuxDataExists("LANDING_RADIUS_M") &&
+                             PLATFORM.AuxDataExists("LANDING_ARRIVAL_TOLERANCE_M");
+            if (canUnload)
+            {
+               unloadPoint = WsfGeoPoint.Construct(PLATFORM.AuxDataString("LANDING_POS"));
+               berthPoint = WsfGeoPoint.Construct(PLATFORM.AuxDataString("LANDING_BERTH_POS"));
+               landingDistance = PLATFORM.GroundRangeTo(unloadPoint);
+               berthDistance = PLATFORM.GroundRangeTo(berthPoint);
+               canUnload = landingDistance <= PLATFORM.AuxDataDouble("LANDING_RADIUS_M") &&
+                           berthDistance <= PLATFORM.AuxDataDouble("LANDING_ARRIVAL_TOLERANCE_M") &&
+                           stationary;
+            }
+            if (!canUnload)
+            {
+               writeln("[RED_TRANSPORT] UNLOAD_REJECTED T=", TIME_NOW,
+                       " transport=", PLATFORM.Name(),
+                       " reason=landing_constraints_not_met",
+                       " landing_range=", landingDistance,
+                       " berth_range=", berthDistance,
+                       " speed=", PLATFORM.GroundSpeed());
+               PLATFORM.SetAuxData("EXTERNAL_TASK", "LANDING_HOLD");
+               PLATFORM.SetAuxData("TASK_STATUS", "IDLE");
+            }
+            else
+            {
+               PLATFORM.SetVelocityNED(0, 0, 0);
+               PLATFORM.GoToSpeed(0);
+               PLATFORM.GoToLocation(PLATFORM.Location());
+               PLATFORM.SetAuxData("TASK_STATUS", "RED_TRANSPORT_UNLOADING");
+               PLATFORM.SetAuxData("UNLOAD_START_TIME", TIME_NOW);
+               PLATFORM.SetAuxData("UNLOAD_COMPLETE_TIME", TIME_NOW + 900.0);
+               writeln("[RED_TRANSPORT] UNLOAD_START T=", TIME_NOW,
+                       " transport=", PLATFORM.Name(),
+                       " complete_at=", TIME_NOW + 900.0);
+            }
+         }
+      }
+
+      if (prev_status == "RED_TRANSPORT_UNLOADING")
+      {
+         PLATFORM.SetVelocityNED(0, 0, 0);
+         PLATFORM.GoToSpeed(0);
+         PLATFORM.GoToLocation(PLATFORM.Location());
+         if (TIME_NOW >= PLATFORM.AuxDataDouble("UNLOAD_COMPLETE_TIME"))
+         {
+            WsfGeoPoint unloadPoint = WsfGeoPoint.Construct(PLATFORM.AuxDataString("LANDING_POS"));
+            int landedCount = 0;
+            string landedUnitName = "";
+            for (int i = 0; i < RED_GROUND_NAMES.Size(); i = i + 1)
+            {
+               WsfPlatform army = WsfSimulation.FindPlatform(RED_GROUND_NAMES[i]);
+               if (landedCount == 0 && army != null &&
+                   army.AuxDataExists("TRANSPORT_NAME") && army.AuxDataString("TRANSPORT_NAME") == PLATFORM.Name() &&
+                   army.AuxDataExists("ON_SHIP") && army.AuxDataBool("ON_SHIP"))
+               {
+                  army.SetAuxData("ON_SHIP", false);
+                  army.SetAuxData("LANDED", true);
+                  army.SetAuxData("FOLLOW_SHIP", "no");
+                  army.SetAuxData("EXTERNAL_TASK", "PARKED");
+                  army.SetAuxData("TASK_STATUS", "IDLE");
+                  army.SetLocation(unloadPoint);
+                  army.SetVelocityNED(0, 0, 0);
+                  army.GoToSpeed(0);
+                  army.GoToLocation(army.Location());
+                  landedCount = landedCount + 1;
+                  landedUnitName = army.Name();
+               }
+            }
+            int remainingUnits = PLATFORM.AuxDataInt("ARMY_UNITS_REMAINING") - landedCount;
+            if (remainingUnits < 0) { remainingUnits = 0; }
+            PLATFORM.SetAuxData("ARMY_UNITS_REMAINING", remainingUnits);
+            PLATFORM.SetAuxData("HAS_ARMY", remainingUnits > 0);
+            PLATFORM.SetAuxData("ARMY_LANDED", remainingUnits == 0);
+            writeln("[RED_TRANSPORT] UNLOAD_COMPLETE T=", TIME_NOW,
+                    " transport=", PLATFORM.Name(),
+                    " duration_sec=900",
+                    " landed_units=", landedCount,
+                    " landed_unit=", landedUnitName,
+                    " remaining_units=", remainingUnits);
+            if (remainingUnits > 0) { PLATFORM.SetAuxData("EXTERNAL_TASK", "PARKED"); }
+            else { PLATFORM.SetAuxData("EXTERNAL_TASK", "LANDING_COMPLETE"); }
+            PLATFORM.SetAuxData("TASK_STATUS", "IDLE");
+         }
+      }
+      if (ext_task == "TRANSPORT" || prev_status == "TRANSPORT_MOVING" || prev_status == "TRANSPORT_UNLOAD")
+      {
+         writeln("[RED_TRANSPORT] TASK_REJECTED T=", TIME_NOW,
+                 " transport=", PLATFORM.Name(),
+                 " task=TRANSPORT",
+                 " reason=deprecated_use_landing_actions");
+         PLATFORM.GoToSpeed(0);
+         PLATFORM.GoToLocation(PLATFORM.Location());
+         PLATFORM.SetAuxData("EXTERNAL_TASK", "LANDING_HOLD");
+         PLATFORM.SetAuxData("TASK_STATUS", "IDLE");
+      }
+      if (ext_task == "PARKED" && prev_status == "IDLE")
+      {
+         PLATFORM.GoToSpeed(0);
+         PLATFORM.GoToLocation(PLATFORM.Location());
+      }
+   }
+   end_execute
+end_platform_type
+
+platform_type GROUND_FORCE WSF_PLATFORM
+   aux_data
+      double MAX_HP = 5
+      double CURRENT_HP = 5
+      bool IS_INDESTRUCTIBLE = false
+      double LAST_DAMAGE_TIME = -1
+      double LAST_ATTACK_TIME = -1
+      double FIRE_COOLDOWN_UNTIL = 0
+      double COMBAT_LOCK_UNTIL = 0
+   end_aux_data
+   icon poi spatial_domain land category GROUND_FORCE
+   mover WSF_AIR_MOVER end_mover
+   weapon ground_fire GROUND_DIRECT_FIRE quantity 15 end_weapon
+   processor assessment WSF_UPLINK_PROCESSOR end_processor
+   aux_data
+      string ROLE = "GROUND_FORCE"
+      string EXTERNAL_TASK = "PARKED"
+      string TASK_STATUS = "IDLE"
+      double GROUND_DETECT_RANGE_M = 10000
+      double GROUND_ATTACK_RANGE_M = 5000
+      int CURRENT_GROUND_AMMO = 15
+   end_aux_data
+   execute at_interval_of 0.25 sec
+   {
+      if (PLATFORM.AuxDataExists("ON_SHIP") && PLATFORM.AuxDataBool("ON_SHIP") &&
+          PLATFORM.AuxDataExists("TRANSPORT_NAME"))
+      {
+         WsfPlatform ship = WsfSimulation.FindPlatform(PLATFORM.AuxDataString("TRANSPORT_NAME"));
+         if (ship != null)
+         {
+            PLATFORM.SetLocation(ship.Location());
+            PLATFORM.GoToSpeed(RED_TRANSPORT_SPEED_MPS);
+            PLATFORM.GoToLocation(ship.Location());
+         }
+      }
+   }
+   end_execute
+   execute at_interval_of 1 sec
+   {
+      if (!PLATFORM.AuxDataExists("EXTERNAL_TASK")) { PLATFORM.SetAuxData("EXTERNAL_TASK", "PARKED"); }
+      if (!PLATFORM.AuxDataExists("TASK_STATUS")) { PLATFORM.SetAuxData("TASK_STATUS", "IDLE"); }
+      string ext_task = PLATFORM.AuxDataString("EXTERNAL_TASK");
+      string prev_status = PLATFORM.AuxDataString("TASK_STATUS");
+      bool movementLocked = PLATFORM.AuxDataExists("COMBAT_LOCK_UNTIL") && TIME_NOW < PLATFORM.AuxDataDouble("COMBAT_LOCK_UNTIL");
+      bool fireCoolingDown = PLATFORM.AuxDataExists("FIRE_COOLDOWN_UNTIL") && TIME_NOW < PLATFORM.AuxDataDouble("FIRE_COOLDOWN_UNTIL");
+      if (movementLocked)
+      {
+         PLATFORM.GoToSpeed(0);
+         PLATFORM.GoToLocation(PLATFORM.Location());
+         if (ext_task == "GROUND_MOVE_POINT" || ext_task == "MOVE" || ext_task == "GROUND_CAPTURE")
+         {
+            writeln("[GROUND_COMBAT] ACTION_REJECTED T=", TIME_NOW,
+                    " ground=", PLATFORM.Name(), " task=", ext_task,
+                    " reason=combat_lock", " remaining_sec=", PLATFORM.AuxDataDouble("COMBAT_LOCK_UNTIL") - TIME_NOW);
+            PLATFORM.SetAuxData("EXTERNAL_TASK", "GROUND_HOLD");
+            PLATFORM.SetAuxData("TASK_STATUS", "IDLE");
+            ext_task = "GROUND_HOLD";
+            prev_status = "IDLE";
+         }
+      }
+
+      if (PLATFORM.AuxDataExists("ON_SHIP") && PLATFORM.AuxDataBool("ON_SHIP"))
+      {
+         return;
+      }
+
+      if (ext_task == "GROUND_HOLD")
+      {
+         PLATFORM.SetVelocityNED(0, 0, 0);
+         PLATFORM.GoToSpeed(0);
+         PLATFORM.GoToLocation(PLATFORM.Location());
+         PLATFORM.SetAuxData("TASK_STATUS", "GROUND_LOITER");
+      }
+      if (ext_task == "GROUND_MOVE_POINT")
+      {
+         if (prev_status != "GROUND_MOVING")
+         {
+            writeln("[RED_GROUND] MOVE_START T=", TIME_NOW,
+                    " ground=", PLATFORM.Name(),
+                    " task=GROUND_MOVE_POINT",
+                    " move_pos=", PLATFORM.AuxDataString("GROUND_MOVE_POS"));
+            PLATFORM.SetAuxData("TASK_STATUS", "GROUND_MOVING");
+         }
+         PLATFORM.GoToSpeed(RED_GROUND_SPEED_MPS);
+         WsfGeoPoint groundMoveTarget = WsfGeoPoint.Construct(PLATFORM.AuxDataString("GROUND_MOVE_POS"));
+         PLATFORM.TurnToHeading(PLATFORM.TrueBearingTo(groundMoveTarget));
+         if (PLATFORM.GroundRangeTo(groundMoveTarget) < 100)
+         {
+            writeln("[RED_GROUND] MOVE_ARRIVED T=", TIME_NOW,
+                    " ground=", PLATFORM.Name(),
+                    " task=GROUND_MOVE_POINT",
+                    " range=", PLATFORM.GroundRangeTo(groundMoveTarget));
+            PLATFORM.SetVelocityNED(0, 0, 0);
+            PLATFORM.GoToSpeed(0);
+            PLATFORM.GoToLocation(PLATFORM.Location());
+            PLATFORM.SetAuxData("EXTERNAL_TASK", "GROUND_HOLD");
+            PLATFORM.SetAuxData("TASK_STATUS", "GROUND_LOITER");
+         }
+      }
+      if (ext_task == "GROUND_FIRE" && prev_status == "IDLE")
+      {
+         string groundTargetName = "";
+         if (PLATFORM.AuxDataExists("GROUND_TARGET_NAME")) { groundTargetName = PLATFORM.AuxDataString("GROUND_TARGET_NAME"); }
+         if (fireCoolingDown)
+         {
+            writeln("[RED_GROUND] FIRE_REJECTED T=", TIME_NOW,
+                    " shooter=", PLATFORM.Name(), " target=", groundTargetName,
+                    " reason=fire_cooldown", " remaining_sec=", PLATFORM.AuxDataDouble("FIRE_COOLDOWN_UNTIL") - TIME_NOW);
+            PLATFORM.SetAuxData("EXTERNAL_TASK", "GROUND_HOLD");
+            PLATFORM.SetAuxData("TASK_STATUS", "IDLE");
+         }
+         else
+         {
+            writeln("[RED_GROUND] FIRE_START T=", TIME_NOW,
+                    " ground=", PLATFORM.Name(), " target=", groundTargetName);
+            PLATFORM.SetAuxData("TASK_STATUS", "GROUND_FIRING");
+         }
+      }
+      if (ext_task == "GROUND_CAPTURE" && prev_status == "IDLE")
+      {
+         writeln("[RED_GROUND] CAPTURE_START T=", TIME_NOW,
+                 " ground=", PLATFORM.Name());
+         PLATFORM.SetAuxData("TASK_STATUS", "GROUND_CAPTURING");
+      }
+      if (ext_task == "MOVE" && prev_status == "IDLE")
+      {
+         writeln("[RED_GROUND] MOVE_START T=", TIME_NOW,
+                 " ground=", PLATFORM.Name(),
+                 " task=MOVE",
+                 " move_pos=", PLATFORM.AuxDataString("TARGET_POS"));
+         PLATFORM.SetAuxData("TASK_STATUS", "MOVE_MOVING");
+      }
+      WsfPlatform enemy = null;
+      if (prev_status == "MOVE_MOVING")
+      {
+         PLATFORM.GoToSpeed(RED_GROUND_SPEED_MPS);
+         WsfGeoPoint tgt = WsfGeoPoint.Construct(PLATFORM.AuxDataString("TARGET_POS"));
+         PLATFORM.GoToLocation(tgt);
+          if (PLATFORM.Side() == "red")
+          {
+             double nearestBlueRange = 1000000000.0;
+             for (int blueIndex = 0; blueIndex < BLUE_GROUND_NAMES.Size(); blueIndex = blueIndex + 1)
+             {
+                WsfPlatform blueCandidate = WsfSimulation.FindPlatform(BLUE_GROUND_NAMES[blueIndex]);
+                if (blueCandidate != null && blueCandidate.DamageFactor() < 1.0 &&
+                    PLATFORM.GroundRangeTo(blueCandidate.Location()) < nearestBlueRange)
+                {
+                   enemy = blueCandidate;
+                   nearestBlueRange = PLATFORM.GroundRangeTo(blueCandidate.Location());
+                }
+             }
+          }
+          if (PLATFORM.GroundRangeTo(tgt) < 500)
+          {
+             writeln("[RED_GROUND] MOVE_ARRIVED T=", TIME_NOW,
+                     " ground=", PLATFORM.Name(),
+                     " task=MOVE",
+                     " range=", PLATFORM.GroundRangeTo(tgt));
+             PLATFORM.SetAuxData("TASK_STATUS", "MOVE_DONE");
+          }
+      }
+      if (PLATFORM.Side() == "red")
+      {
+         WsfPlatform redDetected = null;
+         for (int blueIndex = 0; blueIndex < BLUE_GROUND_NAMES.Size(); blueIndex = blueIndex + 1)
+         {
+            WsfPlatform blueCandidate = WsfSimulation.FindPlatform(BLUE_GROUND_NAMES[blueIndex]);
+            if (blueCandidate != null && blueCandidate.DamageFactor() < 1.0 &&
+                PLATFORM.GroundRangeTo(blueCandidate.Location()) <= PLATFORM.AuxDataDouble("GROUND_DETECT_RANGE_M") &&
+                (redDetected == null || PLATFORM.GroundRangeTo(blueCandidate.Location()) < PLATFORM.GroundRangeTo(redDetected.Location())))
+            {
+               redDetected = blueCandidate;
+            }
+         }
+         for (int samIndex = 0; samIndex < BLUE_SAM_NAMES.Size(); samIndex = samIndex + 1)
+         {
+            WsfPlatform samCandidate = WsfSimulation.FindPlatform(BLUE_SAM_NAMES[samIndex]);
+            if (samCandidate != null && samCandidate.DamageFactor() < 1.0 &&
+                PLATFORM.GroundRangeTo(samCandidate.Location()) <= PLATFORM.AuxDataDouble("GROUND_DETECT_RANGE_M") &&
+                (redDetected == null || PLATFORM.GroundRangeTo(samCandidate.Location()) < PLATFORM.GroundRangeTo(redDetected.Location())))
+            { redDetected = samCandidate; }
+         }
+         for (int radarIndex = 0; radarIndex < BLUE_RADAR_NAMES.Size(); radarIndex = radarIndex + 1)
+         {
+            WsfPlatform radarCandidate = WsfSimulation.FindPlatform(BLUE_RADAR_NAMES[radarIndex]);
+            if (radarCandidate != null && radarCandidate.DamageFactor() < 1.0 &&
+                PLATFORM.GroundRangeTo(radarCandidate.Location()) <= PLATFORM.AuxDataDouble("GROUND_DETECT_RANGE_M") &&
+                (redDetected == null || PLATFORM.GroundRangeTo(radarCandidate.Location()) < PLATFORM.GroundRangeTo(redDetected.Location())))
+            { redDetected = radarCandidate; }
+         }
+         if (redDetected != null)
+         {
+            bool firstRedDetect = true;
+            if (redDetected.AuxDataExists("RED_GROUND_LAST_DETECT_TIME") &&
+                TIME_NOW - redDetected.AuxDataDouble("RED_GROUND_LAST_DETECT_TIME") < 5.0)
+            {
+               firstRedDetect = false;
+            }
+            redDetected.SetAuxData("DETECTED_BY_RED_GROUND", true);
+            redDetected.SetAuxData("RED_GROUND_LAST_DETECT_TIME", TIME_NOW);
+            redDetected.SetAuxData("RED_GROUND_DETECTED_BY", PLATFORM.Name());
+            redDetected.SetAuxData("RED_GROUND_DETECT_RANGE", PLATFORM.GroundRangeTo(redDetected.Location()));
+            if (firstRedDetect)
+            {
+               writeln("[RED_GROUND_SENSOR] DETECT T=", TIME_NOW,
+                       " observer=", PLATFORM.Name(),
+                       " target=", redDetected.Name(),
+                       " range=", PLATFORM.GroundRangeTo(redDetected.Location()));
+            }
+         }
+      }
+
+      if (PLATFORM.Side() == "blue")
+      {
+         WsfPlatform detected = null;
+         for (int redIndex = 0; redIndex < RED_GROUND_NAMES.Size(); redIndex = redIndex + 1)
+         {
+            WsfPlatform redCandidate = WsfSimulation.FindPlatform(RED_GROUND_NAMES[redIndex]);
+            if (redCandidate != null && redCandidate.DamageFactor() < 1.0 &&
+                (!redCandidate.AuxDataExists("ON_SHIP") || !redCandidate.AuxDataBool("ON_SHIP")) &&
+                PLATFORM.GroundRangeTo(redCandidate.Location()) <= PLATFORM.AuxDataDouble("GROUND_DETECT_RANGE_M") &&
+                (detected == null || PLATFORM.GroundRangeTo(redCandidate.Location()) < PLATFORM.GroundRangeTo(detected.Location())))
+            {
+               detected = redCandidate;
+            }
+         }
+         if (detected != null)
+         {
+            bool firstDetect = true;
+            if (detected.AuxDataExists("BLUE_GROUND_LAST_DETECT_TIME") &&
+                TIME_NOW - detected.AuxDataDouble("BLUE_GROUND_LAST_DETECT_TIME") < 5.0)
+            {
+               firstDetect = false;
+            }
+            detected.SetAuxData("DETECTED_BY_BLUE_GROUND", true);
+            detected.SetAuxData("BLUE_GROUND_LAST_DETECT_TIME", TIME_NOW);
+            detected.SetAuxData("BLUE_GROUND_DETECTED_BY", PLATFORM.Name());
+            detected.SetAuxData("BLUE_GROUND_DETECT_RANGE", PLATFORM.GroundRangeTo(detected.Location()));
+            if (firstDetect)
+            {
+               writeln("[BLUE_GROUND_SENSOR] DETECT T=", TIME_NOW,
+                       " observer=", PLATFORM.Name(),
+                       " target=", detected.Name(),
+                       " range=", PLATFORM.GroundRangeTo(detected.Location()));
+            }
+         }
+
+         for (int enemyIndex = 0; enemyIndex < RED_GROUND_NAMES.Size(); enemyIndex = enemyIndex + 1)
+         {
+            WsfPlatform redEnemy = WsfSimulation.FindPlatform(RED_GROUND_NAMES[enemyIndex]);
+            if (redEnemy != null && redEnemy.DamageFactor() < 1.0 &&
+                !IsProtectedTransportPhaseTarget(redEnemy) &&
+                redEnemy.AuxDataExists("DETECTED_BY_BLUE_GROUND") &&
+                redEnemy.AuxDataBool("DETECTED_BY_BLUE_GROUND") &&
+                (enemy == null || PLATFORM.GroundRangeTo(redEnemy.Location()) < PLATFORM.GroundRangeTo(enemy.Location())))
+            {
+               enemy = redEnemy;
+            }
+         }
+      }
+      if (prev_status == "GROUND_FIRING")
+      {
+         if (PLATFORM.AuxDataExists("GROUND_TARGET_NAME"))
+         {
+            enemy = WsfSimulation.FindPlatform(PLATFORM.AuxDataString("GROUND_TARGET_NAME"));
+         }
+         bool redGroundHasTrack = false;
+         if (enemy != null &&
+             enemy.AuxDataExists("DETECTED_BY_RED_GROUND") &&
+             enemy.AuxDataBool("DETECTED_BY_RED_GROUND") &&
+             enemy.AuxDataExists("RED_GROUND_LAST_DETECT_TIME") &&
+             TIME_NOW - enemy.AuxDataDouble("RED_GROUND_LAST_DETECT_TIME") <= RED_GROUND_DETECT_HOLD_SEC)
+         {
+            redGroundHasTrack = true;
+         }
+         if (enemy != null && enemy.DamageFactor() < 1.0 && redGroundHasTrack &&
+             TIME_NOW >= PLATFORM.AuxDataDouble("FIRE_COOLDOWN_UNTIL") &&
+             !IsProtectedTransportPhaseTarget(enemy) &&
+             !IsTargetAlreadyEngaged(enemy.Name()) &&
+             PLATFORM.GroundRangeTo(enemy.Location()) <= PLATFORM.AuxDataDouble("GROUND_ATTACK_RANGE_M"))
+         {
+            if (PLATFORM.Weapon("ground_fire").QuantityRemaining() > 0)
+            {
+               double fireRange = PLATFORM.GroundRangeTo(enemy.Location());
+               WsfGeoPoint aimPoint = enemy.Location();
+               aimPoint.SetAltitudeAGL(10.0);
+               bool fired = PLATFORM.Weapon("ground_fire").FireAtLocation(aimPoint);
+               if (fired)
+               {
+                  PLATFORM.SetAuxData("CURRENT_GROUND_AMMO", (int)PLATFORM.Weapon("ground_fire").QuantityRemaining());
+                  GROUND_PENDING_SHOOTERS.PushBack(PLATFORM.Name());
+                  GROUND_PENDING_TARGETS.PushBack(enemy.Name());
+                  GROUND_PENDING_HIT_TIMES.PushBack(TIME_NOW + fireRange / 500.0);
+                  PLATFORM.SetAuxData("LAST_ATTACK_TIME", TIME_NOW);
+                  PLATFORM.SetAuxData("FIRE_COOLDOWN_UNTIL", TIME_NOW + 300.0);
+                  PLATFORM.SetAuxData("COMBAT_LOCK_UNTIL", TIME_NOW + 300.0);
+                  enemy.SetAuxData("COMBAT_LOCK_UNTIL", TIME_NOW + 300.0);
+                  PLATFORM.GoToSpeed(0);
+                  enemy.GoToSpeed(0);
+                  writeln("[GROUND_COMBAT] LOCKED T=", TIME_NOW,
+                          " shooter=", PLATFORM.Name(), " target=", enemy.Name(), " until=", TIME_NOW + 300.0);
+               }
+            }
+         }
+         else
+         {
+            string rejectReason = "invalid_or_out_of_range";
+            if (enemy != null && IsTargetAlreadyEngaged(enemy.Name())) { rejectReason = "target_already_engaged"; }
+            else if (enemy != null && !redGroundHasTrack) { rejectReason = "not_detected_by_red_ground"; }
+            writeln("[RED_GROUND] FIRE_REJECTED T=", TIME_NOW,
+                    " shooter=", PLATFORM.Name(),
+                    " target=", PLATFORM.AuxDataString("GROUND_TARGET_NAME"),
+                    " reason=", rejectReason);
+         }
+         PLATFORM.SetAuxData("EXTERNAL_TASK", "GROUND_HOLD");
+         PLATFORM.SetAuxData("TASK_STATUS", "IDLE");
+      }
+      if (prev_status == "GROUND_CAPTURING")
+      {
+         PLATFORM.GoToSpeed(0);
+         PLATFORM.SetAuxData("EXTERNAL_TASK", "GROUND_HOLD");
+         PLATFORM.SetAuxData("TASK_STATUS", "IDLE");
+      }
+      bool shooterHasPendingShot = false;
+      bool targetHasPendingShot = false;
+      for (int shotIndex = 0; shotIndex < GROUND_PENDING_TARGETS.Size(); shotIndex = shotIndex + 1)
+      {
+         if (GROUND_PENDING_SHOOTERS[shotIndex] == PLATFORM.Name())
+         {
+            shooterHasPendingShot = true;
+         }
+         if (enemy != null && GROUND_PENDING_TARGETS[shotIndex] == enemy.Name())
+         {
+            targetHasPendingShot = true;
+         }
+      }
+      if (BLUE_OFFENSIVE_ACTIONS_ENABLED &&
+          PLATFORM.Side() == "blue" &&
+          TIME_NOW >= PLATFORM.AuxDataDouble("FIRE_COOLDOWN_UNTIL") &&
+          !shooterHasPendingShot &&
+          !targetHasPendingShot &&
+          enemy != null &&
+          !IsTargetAlreadyEngaged(enemy.Name()) &&
+          !IsProtectedTransportPhaseTarget(enemy) &&
+          enemy.DamageFactor() < 1.0 &&
+          PLATFORM.GroundRangeTo(enemy.Location()) <= PLATFORM.AuxDataDouble("GROUND_ATTACK_RANGE_M"))
+      {
+         if (PLATFORM.Weapon("ground_fire").QuantityRemaining() > 0)
+         {
+            double fireRange = PLATFORM.GroundRangeTo(enemy.Location());
+            WsfGeoPoint aimPoint = enemy.Location();
+            aimPoint.SetAltitudeAGL(10.0);
+            bool fired = PLATFORM.Weapon("ground_fire").FireAtLocation(aimPoint);
+            if (fired)
+            {
+               PLATFORM.SetAuxData("CURRENT_GROUND_AMMO", (int)PLATFORM.Weapon("ground_fire").QuantityRemaining());
+               GROUND_PENDING_SHOOTERS.PushBack(PLATFORM.Name());
+               GROUND_PENDING_TARGETS.PushBack(enemy.Name());
+               GROUND_PENDING_HIT_TIMES.PushBack(TIME_NOW + fireRange / 500.0);
+               PLATFORM.SetAuxData("LAST_ATTACK_TIME", TIME_NOW);
+               PLATFORM.SetAuxData("FIRE_COOLDOWN_UNTIL", TIME_NOW + 300.0);
+               PLATFORM.SetAuxData("COMBAT_LOCK_UNTIL", TIME_NOW + 300.0);
+               enemy.SetAuxData("COMBAT_LOCK_UNTIL", TIME_NOW + 300.0);
+               PLATFORM.GoToSpeed(0);
+               enemy.GoToSpeed(0);
+               writeln("[GROUND_COMBAT] LOCKED T=", TIME_NOW,
+                       " shooter=", PLATFORM.Name(), " target=", enemy.Name(), " until=", TIME_NOW + 300.0);
+            }
+         }
+      }
+      if (prev_status == "MOVE_DONE")
+      {
+         PLATFORM.GoToSpeed(0);
+         PLATFORM.SetAuxData("EXTERNAL_TASK", "PARKED");
+         PLATFORM.SetAuxData("TASK_STATUS", "IDLE");
+      }
+   }
+   end_execute
+end_platform_type
+
+platform_type BLUE_RADAR_SITE WSF_PLATFORM
+   indestructible
+   aux_data
+      double MAX_HP = 3
+      double CURRENT_HP = 3
+      bool IS_INDESTRUCTIBLE = false
+      double LAST_DAMAGE_TIME = -1
+      double LAST_ATTACK_TIME = -1
+      double FIRE_COOLDOWN_UNTIL = 0
+      double COMBAT_LOCK_UNTIL = 0
+   end_aux_data
+   icon ground_radar spatial_domain land
+   aux_data
+      bool RADAR_ON = true
+      double RADAR_RANGE_M = 300000
+      # Fixed 360-degree surveillance: all azimuths are visible every update.
+      double RADAR_BEAM_WIDTH_DEG = 360
+      double RADAR_SCAN_RATE_DEG_PER_SEC = 0
+      double RADAR_SCAN_CENTER_DEG = 0
+      double RADAR_DETECT_HOLD_SEC = 10
+   end_aux_data
+   sensor air_search WSF_GEOMETRIC_SENSOR
+      on
+      azimuth_field_of_view   -180 degrees 180 degrees
+      elevation_field_of_view -90 degrees 90 degrees
+      maximum_range           300 km
+      frame_time              1 sec
+      reports_location reports_velocity reports_range reports_bearing reports_elevation
+      ignore_same_side
+      internal_link radar_track_mgr
+   end_sensor
+   processor radar_track_mgr WSF_TRACK_PROCESSOR
+      master_track_processor
+   end_processor
+   execute at_interval_of 1 sec
+   {
+      if (!PLATFORM.AuxDataBool("RADAR_ON")) { return; }
+
+      double scanCenter = PLATFORM.AuxDataDouble("RADAR_SCAN_CENTER_DEG") + PLATFORM.AuxDataDouble("RADAR_SCAN_RATE_DEG_PER_SEC");
+      scanCenter = MATH.NormalizeAngle0_360(scanCenter);
+      PLATFORM.SetAuxData("RADAR_SCAN_CENTER_DEG", scanCenter);
+
+      for (int airIndex = 0; airIndex < RED_AIR_TARGET_NAMES.Size(); airIndex = airIndex + 1)
+      {
+         WsfPlatform tgt = WsfSimulation.FindPlatform(RED_AIR_TARGET_NAMES[airIndex]);
+         if (tgt != null && tgt.DamageFactor() < 1.0)
+         {
+            double range = PLATFORM.SlantRangeTo(tgt);
+            double bearing = PLATFORM.TrueBearingTo(tgt.Location());
+            double angleError = MATH.Fabs(MATH.NormalizeAngleMinus180_180(bearing - scanCenter));
+            if (range <= PLATFORM.AuxDataDouble("RADAR_RANGE_M") &&
+                angleError <= PLATFORM.AuxDataDouble("RADAR_BEAM_WIDTH_DEG") / 2.0)
+            {
+               bool firstDetect = true;
+               if (tgt.AuxDataExists("BLUE_RADAR_LAST_DETECT_TIME") &&
+                   TIME_NOW - tgt.AuxDataDouble("BLUE_RADAR_LAST_DETECT_TIME") < 5.0)
+               {
+                  firstDetect = false;
+               }
+               tgt.SetAuxData("DETECTED_BY_BLUE_RADAR", true);
+               tgt.SetAuxData("BLUE_RADAR_LAST_DETECT_TIME", TIME_NOW);
+               tgt.SetAuxData("BLUE_RADAR_DETECTED_BY", PLATFORM.Name());
+               if (firstDetect)
+               {
+                  // Blue-radar detection remains fully active; suppress only this high-frequency console log.
+                  // writeln("[BLUE_RADAR] DETECT T=", TIME_NOW,
+                  // " radar=", PLATFORM.Name(),
+                  // " target=", tgt.Name(),
+                  // " range=", range,
+                  // " bearing=", bearing,
+                  // " scan_center=", scanCenter);
+               }
+            }
+         }
+      }
+   }
+   end_execute
+end_platform_type
+
+platform_type BLUE_SAM_LAUNCHER WSF_PLATFORM
+   indestructible
+   aux_data
+      double MAX_HP = 3
+      double CURRENT_HP = 3
+      bool IS_INDESTRUCTIBLE = false
+      double LAST_DAMAGE_TIME = -1
+      double LAST_ATTACK_TIME = -1
+      double FIRE_COOLDOWN_UNTIL = 0
+      double COMBAT_LOCK_UNTIL = 0
+      int CURRENT_SAM_AMMO = 10
+   end_aux_data
+   icon TWIN_BOX spatial_domain land
+   aux_data
+      bool SAM_ON = true
+      double SAM_FIRE_RANGE_M = 25000
+      double SAM_RADAR_TRACK_HOLD_SEC = 10
+      double SAM_FIRE_COOLDOWN_SEC = 600
+   end_aux_data
+   weapon sam MEDIUM_RANGE_RADAR_MISSILE quantity 10 end_weapon
+   execute at_interval_of 1 sec
+   {
+      if (!PLATFORM.AuxDataBool("SAM_ON")) { return; }
+
+      if (PLATFORM.AuxDataExists("EXTERNAL_TASK") && PLATFORM.AuxDataString("EXTERNAL_TASK") == "GROUND_FIRE")
+      {
+         if (TIME_NOW < PLATFORM.AuxDataDouble("FIRE_COOLDOWN_UNTIL"))
+         {
+            writeln("[BLUE_SAM] FIRE_BLOCKED T=", TIME_NOW,
+                    " sam=", PLATFORM.Name(),
+                    " reason=cooldown remaining=", PLATFORM.AuxDataDouble("FIRE_COOLDOWN_UNTIL") - TIME_NOW);
+            PLATFORM.SetAuxData("EXTERNAL_TASK", "PARKED");
+            PLATFORM.SetAuxData("TASK_STATUS", "IDLE");
+            return;
+         }
+
+         string targetName = "";
+         if (PLATFORM.AuxDataExists("GROUND_TARGET_NAME")) { targetName = PLATFORM.AuxDataString("GROUND_TARGET_NAME"); }
+         WsfPlatform tgt = WsfSimulation.FindPlatform(targetName);
+         if (tgt != null && tgt.DamageFactor() < 1.0)
+         {
+            WsfWeapon sam = PLATFORM.Weapon("sam");
+            if (sam.IsValid() && sam.QuantityRemaining() > 0)
+            {
+               WsfTrack targetTrack = WsfTrack();
+               for (int ri = 0; ri < BLUE_RADAR_NAMES.Size(); ri = ri + 1)
+               {
+                  WsfPlatform radar = WsfSimulation.FindPlatform(BLUE_RADAR_NAMES[ri]);
+                  if (radar != null)
+                  {
+                     targetTrack = FindFreshAirTargetTrack(radar, targetName, 10.0);
+                     if (targetTrack.IsValid()) { break; }
+                  }
+               }
+               bool fired = false;
+               if (targetTrack.IsValid())
+               {
+                  fired = sam.Fire(targetTrack);
+               }
+               else
+               {
+                  fired = sam.FireAtLocation(tgt.Location());
+               }
+               if (fired)
+               {
+                  PLATFORM.SetAuxData("CURRENT_SAM_AMMO", (int)sam.QuantityRemaining());
+                  PLATFORM.SetAuxData("LAST_ATTACK_TIME", TIME_NOW);
+                  PLATFORM.SetAuxData("FIRE_COOLDOWN_UNTIL", TIME_NOW + PLATFORM.AuxDataDouble("SAM_FIRE_COOLDOWN_SEC"));
+                  AIR_PENDING_SHOOTERS.PushBack(PLATFORM.Name());
+                  AIR_PENDING_TARGETS.PushBack(targetName);
+                  AIR_PENDING_WEAPONS.PushBack("blue_sam");
+                  AIR_PENDING_PLATFORM_NAMES.PushBack("");
+                  AIR_PENDING_HIT_TIMES.PushBack(TIME_NOW + 60.0);
+                  AIR_PENDING_AIM_LATS.PushBack(tgt.Location().Latitude());
+                  AIR_PENDING_AIM_LONS.PushBack(tgt.Location().Longitude());
+                  AIR_PENDING_LAUNCH_TIMES.PushBack(TIME_NOW);
+                  AIR_PENDING_START_LATS.PushBack(PLATFORM.Location().Latitude());
+                  AIR_PENDING_START_LONS.PushBack(PLATFORM.Location().Longitude());
+                  writeln("[BLUE_SAM] MANUAL_FIRE T=", TIME_NOW,
+                          " sam=", PLATFORM.Name(),
+                          " target=", targetName,
+                          " range=", PLATFORM.SlantRangeTo(tgt),
+                          " has_track=", targetTrack.IsValid(),
+                          " fired=", fired,
+                          " remaining=", sam.QuantityRemaining());
+               }
+            }
+            PLATFORM.SetAuxData("EXTERNAL_TASK", "PARKED");
+            PLATFORM.SetAuxData("TASK_STATUS", "IDLE");
+            return;
+         }
+         PLATFORM.SetAuxData("EXTERNAL_TASK", "PARKED");
+         PLATFORM.SetAuxData("TASK_STATUS", "IDLE");
+      }
+
+      WsfPlatform tgt = null;
+      double nearestRange = 1000000000.0;
+      for (int airIndex = 0; airIndex < RED_AIR_TARGET_NAMES.Size(); airIndex = airIndex + 1)
+      {
+         WsfPlatform candidate = WsfSimulation.FindPlatform(RED_AIR_TARGET_NAMES[airIndex]);
+         if (candidate != null && candidate.DamageFactor() < 1.0 &&
+             candidate.AuxDataExists("DETECTED_BY_BLUE_RADAR") &&
+             candidate.AuxDataBool("DETECTED_BY_BLUE_RADAR") &&
+             candidate.AuxDataExists("BLUE_RADAR_LAST_DETECT_TIME") &&
+             TIME_NOW - candidate.AuxDataDouble("BLUE_RADAR_LAST_DETECT_TIME") <= PLATFORM.AuxDataDouble("SAM_RADAR_TRACK_HOLD_SEC") &&
+             PLATFORM.SlantRangeTo(candidate) < nearestRange)
+         {
+            tgt = candidate;
+            nearestRange = PLATFORM.SlantRangeTo(candidate);
+         }
+      }
+
+      if (tgt != null)
+      {
+         bool targetHasPendingMissile = false;
+         for (int i = 0; i < AIR_PENDING_TARGETS.Size(); i = i + 1)
+         {
+            if (AIR_PENDING_TARGETS[i] == tgt.Name())
+            {
+               targetHasPendingMissile = true;
+            }
+         }
+         double range = nearestRange;
+         WsfWeapon sam = PLATFORM.Weapon("sam");
+         if (BLUE_OFFENSIVE_ACTIONS_ENABLED &&
+             TIME_NOW >= PLATFORM.AuxDataDouble("FIRE_COOLDOWN_UNTIL") &&
+             !targetHasPendingMissile &&
+             range <= PLATFORM.AuxDataDouble("SAM_FIRE_RANGE_M") &&
+             sam.IsValid() &&
+             sam.QuantityRemaining() > 0)
+         {
+            WsfGeoPoint aimPoint = tgt.Location();
+            WsfTrack targetTrack = WsfTrack();
+            if (tgt.AuxDataExists("BLUE_RADAR_DETECTED_BY"))
+            {
+               WsfPlatform trackRadar = WsfSimulation.FindPlatform(tgt.AuxDataString("BLUE_RADAR_DETECTED_BY"));
+               targetTrack = FindFreshAirTargetTrack(trackRadar, tgt.Name(), 2.0);
+            }
+            double targetTrackAge = -1.0;
+            bool targetVelocityValid = false;
+            bool fired = false;
+            if (targetTrack.IsValid())
+            {
+               targetTrackAge = targetTrack.TimeSinceUpdated();
+               targetVelocityValid = targetTrack.VelocityValid();
+               fired = sam.Fire(targetTrack);
+            }
+            if (fired)
+            {
+               PLATFORM.SetAuxData("CURRENT_SAM_AMMO", (int)sam.QuantityRemaining());
+               PLATFORM.SetAuxData("LAST_ATTACK_TIME", TIME_NOW);
+               PLATFORM.SetAuxData("FIRE_COOLDOWN_UNTIL", TIME_NOW + PLATFORM.AuxDataDouble("SAM_FIRE_COOLDOWN_SEC"));
+               AIR_PENDING_SHOOTERS.PushBack(PLATFORM.Name());
+               AIR_PENDING_TARGETS.PushBack(tgt.Name());
+               AIR_PENDING_WEAPONS.PushBack("sam");
+               AIR_PENDING_PLATFORM_NAMES.PushBack(PLATFORM.AuxDataString("LAST_WEAPON_PLATFORM_NAME"));
+               AIR_PENDING_HIT_TIMES.PushBack(TIME_NOW + 125.0);
+               AIR_PENDING_AIM_LATS.PushBack(aimPoint.Latitude());
+               AIR_PENDING_AIM_LONS.PushBack(aimPoint.Longitude());
+
+               AIR_PENDING_LAUNCH_TIMES.PushBack(TIME_NOW);
+
+               AIR_PENDING_START_LATS.PushBack(PLATFORM.Location().Latitude());
+
+               AIR_PENDING_START_LONS.PushBack(PLATFORM.Location().Longitude());
+            }
+         }
+      }
+   }
+   end_execute
+end_platform_type
+
+platform_type BLUE_BASE WSF_PLATFORM
+   icon target spatial_domain land indestructible
+   aux_data
+      double MAX_HP = 0
+      double CURRENT_HP = 0
+      bool IS_INDESTRUCTIBLE = true
+   end_aux_data
+end_platform_type
+
+# --- Red units ---
+platform red_carrier WSF_PLATFORM
+   side red icon carrier spatial_domain surface indestructible
+   position 24:49:02.060n 119:49:24.510e altitude 0 ft msl heading 90 deg
+   aux_data
+      string ROLE = "RED_CARRIER"
+      double MAX_HP = 0
+      double CURRENT_HP = 0
+      bool IS_INDESTRUCTIBLE = true
+      string BASE_TYPE = "AIRCRAFT_HOME"
+      int INITIAL_AAM_STOCK = 30
+      int INITIAL_AGM_STOCK = 50
+      int AAM_STOCK = 30
+      int AGM_STOCK = 50
+   end_aux_data
+   add sensor carrier_air_radar WSF_GEOMETRIC_SENSOR
+      on
+      azimuth_field_of_view   -180 degrees 180 degrees
+      elevation_field_of_view -90 degrees 90 degrees
+      maximum_range           300 km frame_time 1 sec
+      reports_location reports_velocity reports_range reports_bearing reports_elevation
+      ignore_same_side
+      ignore_domain land
+      ignore_domain surface
+      ignore_domain subsurface
+      internal_link carrier_track_mgr
+   end_sensor
+   add processor carrier_track_mgr WSF_TRACK_PROCESSOR
+      master_track_processor
+   end_processor
+end_platform
+
+platform red_recon_1 RED_RECON_AIRCRAFT
+   side red heading 90 deg
+   position 24:49:02.060n 119:49:24.510e altitude 0 ft msl
+   aux_data
+      string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE"
+      string HOME_PLATFORM = "red_carrier"
+      bool AT_HOME_BASE = true
+      int CURRENT_AAM = 1
+      int CURRENT_AGM = 1
+      int LAST_REARM_AAM = 0
+      int LAST_REARM_AGM = 0
+      bool HAS_DETECTIONS = false
+   end_aux_data
+end_platform
+
+platform red_recon_2 RED_RECON_AIRCRAFT
+   side red heading 90 deg
+   position 24:49:02.060n 119:49:24.510e altitude 0 ft msl
+   aux_data string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" string HOME_PLATFORM = "red_carrier" bool AT_HOME_BASE = true bool HAS_DETECTIONS = false end_aux_data
+end_platform
+
+platform red_recon_3 RED_RECON_AIRCRAFT
+   side red heading 90 deg
+   position 24:49:02.060n 119:49:24.510e altitude 0 ft msl
+   aux_data string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" string HOME_PLATFORM = "red_carrier" bool AT_HOME_BASE = true bool HAS_DETECTIONS = false end_aux_data
+end_platform
+
+platform red_recon_4 RED_RECON_AIRCRAFT
+   side red heading 90 deg
+   position 24:49:02.060n 119:49:24.510e altitude 0 ft msl
+   aux_data string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" string HOME_PLATFORM = "red_carrier" bool AT_HOME_BASE = true bool HAS_DETECTIONS = false end_aux_data
+end_platform
+
+platform red_recon_5 RED_RECON_AIRCRAFT
+   side red heading 90 deg
+   position 24:49:02.060n 119:49:24.510e altitude 0 ft msl
+   aux_data string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" string HOME_PLATFORM = "red_carrier" bool AT_HOME_BASE = true bool HAS_DETECTIONS = false end_aux_data
+end_platform
+
+platform red_recon_6 RED_RECON_AIRCRAFT
+   side red heading 90 deg
+   position 24:49:02.060n 119:49:24.510e altitude 0 ft msl
+   aux_data string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" string HOME_PLATFORM = "red_carrier" bool AT_HOME_BASE = true bool HAS_DETECTIONS = false end_aux_data
+end_platform
+
+platform red_recon_7 RED_RECON_AIRCRAFT
+   side red heading 90 deg
+   position 24:49:02.060n 119:49:24.510e altitude 0 ft msl
+   aux_data string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" string HOME_PLATFORM = "red_carrier" bool AT_HOME_BASE = true bool HAS_DETECTIONS = false end_aux_data
+end_platform
+
+platform red_recon_8 RED_RECON_AIRCRAFT
+   side red heading 90 deg
+   position 24:49:02.060n 119:49:24.510e altitude 0 ft msl
+   aux_data string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" string HOME_PLATFORM = "red_carrier" bool AT_HOME_BASE = true bool HAS_DETECTIONS = false end_aux_data
+end_platform
+
+platform red_recon_9 RED_RECON_AIRCRAFT
+   side red heading 90 deg
+   position 24:49:02.060n 119:49:24.510e altitude 0 ft msl
+   aux_data string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" string HOME_PLATFORM = "red_carrier" bool AT_HOME_BASE = true bool HAS_DETECTIONS = false end_aux_data
+end_platform
+
+platform red_recon_10 RED_RECON_AIRCRAFT
+   side red heading 90 deg
+   position 24:49:02.060n 119:49:24.510e altitude 0 ft msl
+   aux_data string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" string HOME_PLATFORM = "red_carrier" bool AT_HOME_BASE = true bool HAS_DETECTIONS = false end_aux_data
+end_platform
+
+platform red_attack_1 RED_ATTACK_AIRCRAFT
+   side red heading 90 deg
+   position 24:49:02.060n 119:49:24.510e altitude 0 ft msl
+   aux_data
+      string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE"
+      string HOME_PLATFORM = "red_carrier"
+      bool AT_HOME_BASE = true
+   end_aux_data
+end_platform
+
+platform red_attack_2 RED_ATTACK_AIRCRAFT
+   side red heading 90 deg
+   position 24:49:02.060n 119:49:24.510e altitude 0 ft msl
+   aux_data string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" string HOME_PLATFORM = "red_carrier" bool AT_HOME_BASE = true end_aux_data
+end_platform
+
+platform red_attack_3 RED_ATTACK_AIRCRAFT
+   side red heading 90 deg
+   position 24:49:02.060n 119:49:24.510e altitude 0 ft msl
+   aux_data string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" string HOME_PLATFORM = "red_carrier" bool AT_HOME_BASE = true end_aux_data
+end_platform
+
+platform red_attack_4 RED_ATTACK_AIRCRAFT
+   side red heading 90 deg
+   position 24:49:02.060n 119:49:24.510e altitude 0 ft msl
+   aux_data string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" string HOME_PLATFORM = "red_carrier" bool AT_HOME_BASE = true end_aux_data
+end_platform
+
+platform red_attack_5 RED_ATTACK_AIRCRAFT
+   side red heading 90 deg
+   position 24:49:02.060n 119:49:24.510e altitude 0 ft msl
+   aux_data string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" string HOME_PLATFORM = "red_carrier" bool AT_HOME_BASE = true end_aux_data
+end_platform
+
+platform red_attack_6 RED_ATTACK_AIRCRAFT
+   side red heading 90 deg
+   position 24:49:02.060n 119:49:24.510e altitude 0 ft msl
+   aux_data string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" string HOME_PLATFORM = "red_carrier" bool AT_HOME_BASE = true end_aux_data
+end_platform
+
+platform red_attack_7 RED_ATTACK_AIRCRAFT
+   side red heading 90 deg
+   position 24:49:02.060n 119:49:24.510e altitude 0 ft msl
+   aux_data string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" string HOME_PLATFORM = "red_carrier" bool AT_HOME_BASE = true end_aux_data
+end_platform
+
+platform red_attack_8 RED_ATTACK_AIRCRAFT
+   side red heading 90 deg
+   position 24:49:02.060n 119:49:24.510e altitude 0 ft msl
+   aux_data string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" string HOME_PLATFORM = "red_carrier" bool AT_HOME_BASE = true end_aux_data
+end_platform
+
+platform red_attack_9 RED_ATTACK_AIRCRAFT
+   side red heading 90 deg
+   position 24:49:02.060n 119:49:24.510e altitude 0 ft msl
+   aux_data string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" string HOME_PLATFORM = "red_carrier" bool AT_HOME_BASE = true end_aux_data
+end_platform
+
+platform red_attack_10 RED_ATTACK_AIRCRAFT
+   side red heading 90 deg
+   position 24:49:02.060n 119:49:24.510e altitude 0 ft msl
+   aux_data string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" string HOME_PLATFORM = "red_carrier" bool AT_HOME_BASE = true end_aux_data
+end_platform
+
+platform red_transport_1 RED_TRANSPORT_SHIP
+   side red heading 90 deg
+   position 24:58:31.460n 119:57:50.380e altitude 0 ft msl
+   aux_data string ROLE = "RED_TRANSPORT_SHIP" bool HAS_ARMY = true bool ARMY_LANDED = false string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data
+end_platform
+
+platform red_transport_2 RED_TRANSPORT_SHIP
+   side red heading 90 deg
+   position 24:45:03.020n 119:45:17.850e altitude 0 ft msl
+   aux_data string ROLE = "RED_TRANSPORT_SHIP" bool HAS_ARMY = true bool ARMY_LANDED = false string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data
+end_platform
+
+platform red_transport_3 RED_TRANSPORT_SHIP
+   side red heading 90 deg
+   position 25:08:08.780n 120:06:12.030e altitude 0 ft msl
+   aux_data string ROLE = "RED_TRANSPORT_SHIP" bool HAS_ARMY = true bool ARMY_LANDED = false string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data
+end_platform
+
+# Test-only unit disabled in the main scenario.
+# platform red_transport_test RED_TRANSPORT_SHIP
+#    side red heading 90 deg
+#    position 24:57:10.230n 120:52:00.410e altitude 0 ft msl
+#    aux_data string ROLE = "RED_TRANSPORT_SHIP" bool HAS_ARMY = true bool ARMY_LANDED = false string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data
+# end_platform
+
+platform red_ground_1 GROUND_FORCE side red heading 90 deg position 24:58:31.460n 119:57:50.380e altitude 0 ft agl aux_data string ROLE = "RED_GROUND_FORCE" bool ON_SHIP = true bool LANDED = false string TRANSPORT_NAME = "red_transport_1" string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data end_platform
+platform red_ground_2 GROUND_FORCE side red heading 90 deg position 24:58:31.460n 119:57:50.380e altitude 0 ft agl aux_data string ROLE = "RED_GROUND_FORCE" bool ON_SHIP = true bool LANDED = false string TRANSPORT_NAME = "red_transport_1" string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data end_platform
+platform red_ground_3 GROUND_FORCE side red heading 90 deg position 24:58:31.460n 119:57:50.380e altitude 0 ft agl aux_data string ROLE = "RED_GROUND_FORCE" bool ON_SHIP = true bool LANDED = false string TRANSPORT_NAME = "red_transport_1" string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data end_platform
+platform red_ground_4 GROUND_FORCE side red heading 90 deg position 24:45:03.020n 119:45:17.850e altitude 0 ft agl aux_data string ROLE = "RED_GROUND_FORCE" bool ON_SHIP = true bool LANDED = false string TRANSPORT_NAME = "red_transport_2" string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data end_platform
+platform red_ground_5 GROUND_FORCE side red heading 90 deg position 24:45:03.020n 119:45:17.850e altitude 0 ft agl aux_data string ROLE = "RED_GROUND_FORCE" bool ON_SHIP = true bool LANDED = false string TRANSPORT_NAME = "red_transport_2" string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data end_platform
+platform red_ground_6 GROUND_FORCE side red heading 90 deg position 24:45:03.020n 119:45:17.850e altitude 0 ft agl aux_data string ROLE = "RED_GROUND_FORCE" bool ON_SHIP = true bool LANDED = false string TRANSPORT_NAME = "red_transport_2" string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data end_platform
+platform red_ground_7 GROUND_FORCE side red heading 90 deg position 24:45:03.020n 119:45:17.850e altitude 0 ft agl aux_data string ROLE = "RED_GROUND_FORCE" bool ON_SHIP = true bool LANDED = false string TRANSPORT_NAME = "red_transport_2" string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data end_platform
+platform red_ground_8 GROUND_FORCE side red heading 90 deg position 25:08:08.780n 120:06:12.030e altitude 0 ft agl aux_data string ROLE = "RED_GROUND_FORCE" bool ON_SHIP = true bool LANDED = false string TRANSPORT_NAME = "red_transport_3" string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data end_platform
+platform red_ground_9 GROUND_FORCE side red heading 90 deg position 25:08:08.780n 120:06:12.030e altitude 0 ft agl aux_data string ROLE = "RED_GROUND_FORCE" bool ON_SHIP = true bool LANDED = false string TRANSPORT_NAME = "red_transport_3" string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data end_platform
+platform red_ground_10 GROUND_FORCE side red heading 90 deg position 25:08:08.780n 120:06:12.030e altitude 0 ft agl aux_data string ROLE = "RED_GROUND_FORCE" bool ON_SHIP = true bool LANDED = false string TRANSPORT_NAME = "red_transport_3" string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data end_platform
+
+# Test-only unit disabled in the main scenario.
+# platform red_ground_test GROUND_FORCE side red heading 90 deg position 24:57:10.230n 120:52:00.410e altitude 0 ft agl aux_data string ROLE = "RED_GROUND_FORCE" bool ON_SHIP = true bool LANDED = false string TRANSPORT_NAME = "red_transport_test" string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data end_platform
+
+# --- Blue units ---
+platform blue_base BLUE_BASE
+   side blue heading 270 deg
+   position 24:58:17.800n 121:13:41.150e altitude 0 ft agl
+   aux_data string ROLE = "BLUE_BASE" string OWNER_SIDE = "blue" bool CAPTURED_BY_RED = false end_aux_data
+end_platform
+
+platform blue_attack_1 BLUE_ATTACK_AIRCRAFT side blue heading 270 deg position 24:58:17.450n 121:13:41.870e altitude 9843 ft agl end_platform
+platform blue_attack_2 BLUE_ATTACK_AIRCRAFT side blue heading 270 deg position 24:58:17.450n 121:13:41.870e altitude 9843 ft agl end_platform
+platform blue_attack_3 BLUE_ATTACK_AIRCRAFT side blue heading 270 deg position 24:58:17.450n 121:13:41.870e altitude 9843 ft agl end_platform
+platform blue_attack_4 BLUE_ATTACK_AIRCRAFT side blue heading 270 deg position 24:58:17.450n 121:13:41.870e altitude 9843 ft agl end_platform
+platform blue_attack_5 BLUE_ATTACK_AIRCRAFT side blue heading 270 deg position 24:58:17.450n 121:13:41.870e altitude 9843 ft agl end_platform
+platform blue_attack_6 BLUE_ATTACK_AIRCRAFT side blue heading 270 deg position 24:58:17.450n 121:13:41.870e altitude 9843 ft agl end_platform
+platform blue_attack_7 BLUE_ATTACK_AIRCRAFT side blue heading 270 deg position 24:58:17.450n 121:13:41.870e altitude 9843 ft agl end_platform
+platform blue_attack_8 BLUE_ATTACK_AIRCRAFT side blue heading 270 deg position 24:58:17.450n 121:13:41.870e altitude 9843 ft agl end_platform
+platform blue_attack_9 BLUE_ATTACK_AIRCRAFT side blue heading 270 deg position 24:58:17.450n 121:13:41.870e altitude 9843 ft agl end_platform
+platform blue_attack_10 BLUE_ATTACK_AIRCRAFT side blue heading 270 deg position 24:58:17.450n 121:13:41.870e altitude 9843 ft agl end_platform
+
+platform blue_ground_1 GROUND_FORCE side blue heading 270 deg position 24:57:01.470n 121:02:08.410e altitude 0 ft agl aux_data string ROLE = "BLUE_GROUND_FORCE" string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data end_platform
+platform blue_ground_2 GROUND_FORCE side blue heading 270 deg position 25:03:38.350n 121:15:03.730e altitude 0 ft agl aux_data string ROLE = "BLUE_GROUND_FORCE" string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data end_platform
+platform blue_ground_3 GROUND_FORCE side blue heading 270 deg position 25:00:27.170n 121:03:44.820e altitude 0 ft agl aux_data string ROLE = "BLUE_GROUND_FORCE" string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data end_platform
+platform blue_ground_4 GROUND_FORCE side blue heading 270 deg position 24:59:03.300n 121:07:33.070e altitude 0 ft agl aux_data string ROLE = "BLUE_GROUND_FORCE" string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data end_platform
+platform blue_ground_5 GROUND_FORCE side blue heading 270 deg position 25:02:46.250n 121:05:28.020e altitude 0 ft agl aux_data string ROLE = "BLUE_GROUND_FORCE" string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data end_platform
+platform blue_ground_6 GROUND_FORCE side blue heading 270 deg position 25:00:18.070n 121:26:35.080e altitude 0 ft agl aux_data string ROLE = "BLUE_GROUND_FORCE" string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data end_platform
+platform blue_ground_7 GROUND_FORCE side blue heading 270 deg position 25:03:47.810n 121:06:47.910e altitude 0 ft agl aux_data string ROLE = "BLUE_GROUND_FORCE" string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data end_platform
+platform blue_ground_8 GROUND_FORCE side blue heading 270 deg position 24:49:35.670n 120:57:23.830e altitude 0 ft agl aux_data string ROLE = "BLUE_GROUND_FORCE" string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data end_platform
+platform blue_ground_9 GROUND_FORCE side blue heading 270 deg position 24:52:45.640n 120:58:42.050e altitude 0 ft agl aux_data string ROLE = "BLUE_GROUND_FORCE" string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data end_platform
+platform blue_ground_10 GROUND_FORCE side blue heading 270 deg position 24:49:57.560n 121:00:44.920e altitude 0 ft agl aux_data string ROLE = "BLUE_GROUND_FORCE" string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data end_platform
+platform blue_ground_11 GROUND_FORCE side blue heading 270 deg position 25:00:55.190n 121:06:32.340e altitude 0 ft agl aux_data string ROLE = "BLUE_GROUND_FORCE" string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data end_platform
+platform blue_ground_12 GROUND_FORCE side blue heading 270 deg position 24:55:30.020n 121:04:29.150e altitude 0 ft agl aux_data string ROLE = "BLUE_GROUND_FORCE" string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data end_platform
+platform blue_ground_13 GROUND_FORCE side blue heading 270 deg position 25:04:03.770n 121:09:16.060e altitude 0 ft agl aux_data string ROLE = "BLUE_GROUND_FORCE" string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data end_platform
+platform blue_ground_14 GROUND_FORCE side blue heading 270 deg position 25:04:54.790n 121:11:19.480e altitude 0 ft agl aux_data string ROLE = "BLUE_GROUND_FORCE" string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data end_platform
+platform blue_ground_15 GROUND_FORCE side blue heading 270 deg position 25:05:30.460n 121:13:36.960e altitude 0 ft agl aux_data string ROLE = "BLUE_GROUND_FORCE" string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data end_platform
+platform blue_ground_16 GROUND_FORCE side blue heading 270 deg position 25:05:17.470n 121:28:49.830e altitude 0 ft agl aux_data string ROLE = "BLUE_GROUND_FORCE" string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data end_platform
+platform blue_ground_17 GROUND_FORCE side blue heading 270 deg position 24:53:41.970n 121:14:27.220e altitude 0 ft agl aux_data string ROLE = "BLUE_GROUND_FORCE" string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data end_platform
+platform blue_ground_18 GROUND_FORCE side blue heading 270 deg position 24:57:42.190n 121:22:35.840e altitude 0 ft agl aux_data string ROLE = "BLUE_GROUND_FORCE" string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data end_platform
+platform blue_ground_19 GROUND_FORCE side blue heading 270 deg position 25:01:51.330n 121:32:29.980e altitude 0 ft agl aux_data string ROLE = "BLUE_GROUND_FORCE" string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data end_platform
+platform blue_ground_20 GROUND_FORCE side blue heading 270 deg position 24:55:55.490n 121:18:18.820e altitude 0 ft agl aux_data string ROLE = "BLUE_GROUND_FORCE" string EXTERNAL_TASK = "PARKED" string TASK_STATUS = "IDLE" end_aux_data end_platform
+
+platform blue_radar_1 BLUE_RADAR_SITE side blue heading 270 deg position 24:55:10.990n 121:00:34.480e altitude 0 ft agl end_platform
+platform blue_radar_2 BLUE_RADAR_SITE side blue heading 270 deg position 25:06:29.380n 121:15:05.890e altitude 0 ft agl end_platform
+platform blue_radar_3 BLUE_RADAR_SITE side blue heading 270 deg position 25:03:50.230n 121:31:14.610e altitude 0 ft agl end_platform
+
+platform blue_sam_1 BLUE_SAM_LAUNCHER side blue heading 270 deg position 24:56:45.240n 121:06:54.590e altitude 0 ft agl end_platform
+platform blue_sam_2 BLUE_SAM_LAUNCHER side blue heading 270 deg position 25:02:57.870n 121:11:15.710e altitude 0 ft agl end_platform
+platform blue_sam_3 BLUE_SAM_LAUNCHER side blue heading 270 deg position 25:02:27.260n 121:18:25.220e altitude 0 ft agl end_platform
+platform blue_sam_4 BLUE_SAM_LAUNCHER side blue heading 270 deg position 24:52:18.180n 121:11:28.150e altitude 0 ft agl end_platform
+platform blue_sam_5 BLUE_SAM_LAUNCHER side blue heading 270 deg position 24:57:01.430n 121:19:23.510e altitude 0 ft agl end_platform
+

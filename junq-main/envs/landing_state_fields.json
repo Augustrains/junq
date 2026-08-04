@@ -1,0 +1,217 @@
+{
+    "normalization": {
+        "max_elapsed_steps": 240,
+        "max_distance_m": 500000
+    },
+    "description": "Field list for per-transport landing observations. Includes selected landing-zone state plus three candidate landing-zone slots.",
+    "fields": [
+        {
+            "name": "alive",
+            "description": "1 if this transport is alive."
+        },
+        {
+            "name": "agent_id_norm",
+            "description": "Fixed unit identity within the same controllable unit type, normalized to (0, 1]."
+        },
+        {
+            "name": "group_slot_norm",
+            "description": "Slot index of this unit inside the active task group, normalized to (0, 1]; 0 when unassigned."
+        },
+        {
+            "name": "lat_norm",
+            "description": "Transport latitude normalized by scenario bounds."
+        },
+        {
+            "name": "lon_norm",
+            "description": "Transport longitude normalized by scenario bounds."
+        },
+        {
+            "name": "is_busy",
+            "description": "1 if the transport is executing a non-idle task."
+        },
+        {
+            "name": "is_stationary",
+            "description": "1 if transport speed is at most 1 m/s; unloading requires this state."
+        },
+        {
+            "name": "speed_norm",
+            "description": "Current transport speed normalized by its configured maximum speed."
+        },
+        {
+            "name": "command_speed_norm",
+            "description": "Persisted commanded movement speed normalized by maximum speed."
+        },
+        {
+            "name": "has_army",
+            "description": "1 if the transport still carries army units."
+        },
+        {
+            "name": "army_landed",
+            "description": "1 if the carried army has already landed."
+        },
+        {
+            "name": "unloading",
+            "description": "1 while this transport is stationary in its 15-minute whole-manifest unload cycle."
+        },
+        {
+            "name": "unload_remaining_norm",
+            "description": "Remaining unload time divided by the configured 15-minute duration."
+        },
+        {
+            "name": "cargo_unit_count_norm",
+            "description": "Fraction of this transport's assigned ground-force manifest still onboard."
+        },
+        {
+            "name": "distance_to_landing_zone_norm",
+            "description": "Distance to the selected fixed sea-side berth."
+        },
+        {
+            "name": "bearing_to_landing_zone_norm",
+            "description": "Bearing to the selected fixed sea-side berth."
+        },
+        {
+            "name": "sea_path_distance_norm",
+            "description": "Shortest valid sea-route distance to the selected berth, normalized."
+        },
+        {
+            "name": "sea_path_reachable",
+            "description": "1 if the berth is connected to the transport through navigable sea cells."
+        },
+        {
+            "name": "at_landing_zone",
+            "description": "1 if inside both the berth arrival tolerance and shoreline unload radius."
+        },
+        {
+            "name": "nearest_blue_ground_distance_norm",
+            "description": "Distance to nearest known blue ground force."
+        },
+        {
+            "name": "nearest_blue_ground_bearing_norm",
+            "description": "Bearing to nearest known blue ground force."
+        },
+        {
+            "name": "nearest_blue_sam_distance_norm",
+            "description": "Distance to nearest known blue SAM."
+        },
+        {
+            "name": "nearest_blue_sam_bearing_norm",
+            "description": "Bearing to nearest known blue SAM."
+        },
+        {
+            "name": "nearest_blue_air_distance_norm",
+            "description": "Distance to nearest known blue aircraft."
+        },
+        {
+            "name": "nearest_blue_air_bearing_norm",
+            "description": "Bearing to nearest known blue aircraft."
+        },
+        {
+            "name": "known_blue_ground_count_norm",
+            "description": "Known blue ground force count normalized."
+        },
+        {
+            "name": "known_blue_sam_count_norm",
+            "description": "Known blue SAM count normalized."
+        },
+        {
+            "name": "available_attack_aircraft_count_norm",
+            "description": "Available red attack aircraft count normalized."
+        },
+        {
+            "name": "elapsed_ratio",
+            "description": "Landing task elapsed time normalized."
+        },
+        {
+            "name": "landing_complete",
+            "description": "1 if this transport has completed unloading."
+        },
+        {
+            "name": "landing_zone_slot_1_exists",
+            "description": "Slot 1: 1 if this candidate landing zone exists."
+        },
+        {
+            "name": "landing_zone_slot_1_selected",
+            "description": "Slot 1: 1 if this is the currently selected landing zone."
+        },
+        {
+            "name": "landing_zone_slot_1_distance_norm",
+            "description": "Slot 1: distance from this transport to the candidate landing zone."
+        },
+        {
+            "name": "landing_zone_slot_1_bearing_norm",
+            "description": "Slot 1: bearing from this transport to the candidate landing zone."
+        },
+        {
+            "name": "landing_zone_slot_1_nearest_known_sam_distance_norm",
+            "description": "Slot 1: nearest known SAM distance to this landing zone."
+        },
+        {
+            "name": "landing_zone_slot_1_nearest_known_blue_ground_distance_norm",
+            "description": "Slot 1: nearest known blue ground force distance to this landing zone."
+        },
+        {
+            "name": "landing_zone_slot_2_exists",
+            "description": "Slot 2: 1 if this candidate landing zone exists."
+        },
+        {
+            "name": "landing_zone_slot_2_selected",
+            "description": "Slot 2: 1 if this is the currently selected landing zone."
+        },
+        {
+            "name": "landing_zone_slot_2_distance_norm",
+            "description": "Slot 2: distance from this transport to the candidate landing zone."
+        },
+        {
+            "name": "landing_zone_slot_2_bearing_norm",
+            "description": "Slot 2: bearing from this transport to the candidate landing zone."
+        },
+        {
+            "name": "landing_zone_slot_2_nearest_known_sam_distance_norm",
+            "description": "Slot 2: nearest known SAM distance to this landing zone."
+        },
+        {
+            "name": "landing_zone_slot_2_nearest_known_blue_ground_distance_norm",
+            "description": "Slot 2: nearest known blue ground force distance to this landing zone."
+        },
+        {
+            "name": "landing_zone_slot_3_exists",
+            "description": "Slot 3: 1 if this candidate landing zone exists."
+        },
+        {
+            "name": "landing_zone_slot_3_selected",
+            "description": "Slot 3: 1 if this is the currently selected landing zone."
+        },
+        {
+            "name": "landing_zone_slot_3_distance_norm",
+            "description": "Slot 3: distance from this transport to the candidate landing zone."
+        },
+        {
+            "name": "landing_zone_slot_3_bearing_norm",
+            "description": "Slot 3: bearing from this transport to the candidate landing zone."
+        },
+        {
+            "name": "landing_zone_slot_3_nearest_known_sam_distance_norm",
+            "description": "Slot 3: nearest known SAM distance to this landing zone."
+        },
+        {
+            "name": "landing_zone_slot_3_nearest_known_blue_ground_distance_norm",
+            "description": "Slot 3: nearest known blue ground force distance to this landing zone."
+        },
+        {
+            "name": "task_assigned",
+            "description": "1 while this transport belongs to an active landing task."
+        },
+        {
+            "name": "heading_sin",
+            "description": "Sine of the transport's actual heading reported by AFSIM."
+        },
+        {
+            "name": "heading_cos",
+            "description": "Cosine of the transport's actual heading reported by AFSIM."
+        },
+        {
+            "name": "last_action_id_norm",
+            "description": "Last landing action id divided by the largest configured landing action id."
+        }
+    ]
+}

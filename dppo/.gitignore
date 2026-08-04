@@ -1,0 +1,44 @@
+# Python bytecode and tool caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments and local environment files
+.venv/
+venv/
+env/
+.env
+.env.*
+
+# Runtime logs, process files, and test artifacts
+*.log
+*.out
+*.err
+*.pid
+.final_live_warlock_pid
+.test_artifacts/
+
+# Training outputs and model checkpoints
+checkpoints/
+stage_snapshots/
+runs/
+*.pt
+*.pth
+*.ckpt
+*.onnx
+metrics.jsonl
+
+# Generated reports and plots
+*.png
+*.svg
+
+# IDE and operating-system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini

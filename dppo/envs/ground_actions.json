@@ -1,0 +1,10 @@
+﻿{
+  "description": "Discrete ground controls: hold, move toward the assigned objective, or approach/fire at a fixed enemy target using its latest shared reconnaissance track.",
+  "toward_objective_step_m": 5000.0,
+  "actions": [
+    {"id": 0, "name": "HOLD", "afsim_task": "GROUND_HOLD", "description": "Stop at the current position."},
+    {"id": 1, "name": "MOVE_TOWARD_OBJECTIVE", "afsim_task": "GROUND_MOVE_POINT", "to_objective": true, "move_step_m": 5000.0, "description": "Move at most five kilometers toward the assigned ground objective."},
+    {"id": 2, "name": "ATTACK_TARGET_1", "afsim_task": "GROUND_TARGET_SLOT", "target_slot": 0, "description": "Move toward the target's latest shared reconnaissance position; fire instead when current geometry is within ground-weapon range."}
+  ],
+  "target_slot_count": 8
+}

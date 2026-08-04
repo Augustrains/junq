@@ -1,0 +1,24 @@
+{
+    "event_rewards":  {
+                          "invalid_action":  -2,
+                          "udp_not_ready":  -2,
+                          "task_rejected":  -1,
+                          "platform_not_ready":  -1,
+                          "attack_unknown_target":  -1,
+                          "attack_target_not_known":  -1,
+                          "attack_failed":  -1
+                      },
+    "attack_result_rewards":  {
+                                  "NO_ENEMY":  -1,
+                                  "NO_COMPATIBLE_WEAPON":  -1,
+                                  "AMMO_EMPTY":  -1
+                              },
+    "attack_return_rewards":  {
+                                  "enabled":  true,
+                                  "progress_per_10km":  0.5,
+                                  "max_progress_m_per_step":  50000,
+                                  "arrival_at_carrier":  6,
+                                  "rearm_completed_base":  8,
+                                  "rearm_completed_per_missile":  4
+                              }
+}

@@ -1,0 +1,47 @@
+{
+  "description": "Fixed three-hour mission horizon with final scoring from surviving landed red ground-force HP inside one kilometer of blue_base.",
+  "priority": ["red_ground_defeated", "fixed_horizon", "timeout", "none"],
+  "rules": {
+    "capture_success": {
+      "type": "progress_only",
+      "description": "Capture remains a process event and reward source; it does not terminate the episode.",
+      "enabled": false,
+      "capture_hold_seconds": 60.0,
+      "objective_radius_m": 100.0
+    },
+    "fixed_horizon": {
+      "type": "score_terminal",
+      "description": "Terminate at three simulation hours and score landed surviving red ground-force HP within 1 km of blue_base.",
+      "enabled": true,
+      "simulation_seconds": 10800.0,
+      "score_center_platform": "blue_base",
+      "score_radius_m": 1000.0,
+      "score_side": "red",
+      "score_role": "ground_force",
+      "require_landed": true,
+      "maximum_score_hp": 50.0,
+      "terminal_reward_per_hp": 1.0
+    },
+    "red_ground_defeated": {
+      "type": "failure",
+      "description": "All red ground forces are destroyed; terminate early with zero final score.",
+      "enabled": true
+    },
+    "red_transport_no_army_no_landing": {
+      "type": "failure",
+      "description": "Disabled under the fixed-horizon scoring contract.",
+      "enabled": false
+    },
+    "red_attack_aircraft_defeated_before_landing_window": {
+      "type": "failure",
+      "description": "Disabled under the fixed-horizon scoring contract.",
+      "enabled": false
+    },
+    "timeout": {
+      "type": "safety_step_limit",
+      "description": "Optional non-live fallback only; live termination uses AFSIM simulation time.",
+      "enabled": false
+    },
+    "none": {"type": "running", "description": "Episode is still running.", "enabled": true}
+  }
+}

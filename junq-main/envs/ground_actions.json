@@ -1,0 +1,148 @@
+{
+    "description":  "SMAC-style discrete controls for landed ground forces, using one attack action per compatible target slot.",
+    "move_step_m":  1000.0,
+    "toward_objective_step_m":  5000.0,
+    "actions":  [
+                    {
+                        "id":  0,
+                        "name":  "HOLD",
+                        "afsim_task":  "GROUND_HOLD",
+                        "description":  "Do nothing this decision step."
+                    },
+                    {
+                        "id":  1,
+                        "name":  "MOVE_NORTH",
+                        "afsim_task":  "GROUND_MOVE_POINT",
+                        "north_m":  1000.0,
+                        "east_m":  0.0,
+                        "description":  "Move one fixed step north."
+                    },
+                    {
+                        "id":  2,
+                        "name":  "MOVE_SOUTH",
+                        "afsim_task":  "GROUND_MOVE_POINT",
+                        "north_m":  -1000.0,
+                        "east_m":  0.0,
+                        "description":  "Move one fixed step south."
+                    },
+                    {
+                        "id":  3,
+                        "name":  "MOVE_EAST",
+                        "afsim_task":  "GROUND_MOVE_POINT",
+                        "north_m":  0.0,
+                        "east_m":  1000.0,
+                        "description":  "Move one fixed step east."
+                    },
+                    {
+                        "id":  4,
+                        "name":  "MOVE_WEST",
+                        "afsim_task":  "GROUND_MOVE_POINT",
+                        "north_m":  0.0,
+                        "east_m":  -1000.0,
+                        "description":  "Move one fixed step west."
+                    },
+                    {
+                        "id":  5,
+                        "name":  "MOVE_NORTH_EAST",
+                        "afsim_task":  "GROUND_MOVE_POINT",
+                        "north_m":  707.0,
+                        "east_m":  707.0,
+                        "description":  "Move one fixed diagonal step north-east."
+                    },
+                    {
+                        "id":  6,
+                        "name":  "MOVE_NORTH_WEST",
+                        "afsim_task":  "GROUND_MOVE_POINT",
+                        "north_m":  707.0,
+                        "east_m":  -707.0,
+                        "description":  "Move one fixed diagonal step north-west."
+                    },
+                    {
+                        "id":  7,
+                        "name":  "MOVE_SOUTH_EAST",
+                        "afsim_task":  "GROUND_MOVE_POINT",
+                        "north_m":  -707.0,
+                        "east_m":  707.0,
+                        "description":  "Move one fixed diagonal step south-east."
+                    },
+                    {
+                        "id":  8,
+                        "name":  "MOVE_SOUTH_WEST",
+                        "afsim_task":  "GROUND_MOVE_POINT",
+                        "north_m":  -707.0,
+                        "east_m":  -707.0,
+                        "description":  "Move one fixed diagonal step south-west."
+                    },
+                    {
+                        "id":  9,
+                        "name":  "MOVE_TOWARD_OBJECTIVE",
+                        "afsim_task":  "GROUND_MOVE_POINT",
+                        "to_objective":  true,
+                        "move_step_m":  5000.0,
+                        "description":  "Move at most five kilometers toward the assigned ground objective."
+                    },
+                    {
+                        "id":  10,
+                        "name":  "ATTACK_TARGET_1",
+                        "afsim_task":  "GROUND_FIRE",
+                        "target_slot":  0,
+                        "description":  "Attack compatible ground target slot 1."
+                    },
+                    {
+                        "id":  11,
+                        "name":  "ATTACK_TARGET_2",
+                        "afsim_task":  "GROUND_FIRE",
+                        "target_slot":  1,
+                        "description":  "Attack compatible ground target slot 2."
+                    },
+                    {
+                        "id":  12,
+                        "name":  "ATTACK_TARGET_3",
+                        "afsim_task":  "GROUND_FIRE",
+                        "target_slot":  2,
+                        "description":  "Attack compatible ground target slot 3."
+                    },
+                    {
+                        "id":  13,
+                        "name":  "ATTACK_TARGET_4",
+                        "afsim_task":  "GROUND_FIRE",
+                        "target_slot":  3,
+                        "description":  "Attack compatible ground target slot 4."
+                    },
+                    {
+                        "id":  14,
+                        "name":  "ATTACK_TARGET_5",
+                        "afsim_task":  "GROUND_FIRE",
+                        "target_slot":  4,
+                        "description":  "Attack compatible ground target slot 5."
+                    },
+                    {
+                        "id":  15,
+                        "name":  "ATTACK_TARGET_6",
+                        "afsim_task":  "GROUND_FIRE",
+                        "target_slot":  5,
+                        "description":  "Attack compatible ground target slot 6."
+                    },
+                    {
+                        "id":  16,
+                        "name":  "ATTACK_TARGET_7",
+                        "afsim_task":  "GROUND_FIRE",
+                        "target_slot":  6,
+                        "description":  "Attack compatible ground target slot 7."
+                    },
+                    {
+                        "id":  17,
+                        "name":  "ATTACK_TARGET_8",
+                        "afsim_task":  "GROUND_FIRE",
+                        "target_slot":  7,
+                        "description":  "Attack compatible ground target slot 8."
+                    },
+                    {
+                        "id":  18,
+                        "name":  "CAPTURE_OBJECTIVE",
+                        "afsim_task":  "GROUND_CAPTURE",
+                        "description":  "Capture the objective after entering it and clearing enemy ground presence."
+                    }
+                ],
+    "target_slot_count":  8
+}

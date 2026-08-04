@@ -1,0 +1,108 @@
+{
+  "description": "登陆任务子智能体动作表。高层只指定登陆区域，子智能体逐步控制运输船移动和卸载。",
+  "actions": [
+    {
+      "id": 0,
+      "name": "HOLD",
+      "afsim_task": "LANDING_HOLD",
+      "description": "保持当前位置，不继续机动。"
+    },
+    {
+      "id": 1,
+      "name": "MOVE_NORTH",
+      "afsim_task": "LANDING_MOVE_POINT",
+      "north_m": 8000.0,
+      "east_m": 0.0,
+      "description": "向北移动一个步长。"
+    },
+    {
+      "id": 2,
+      "name": "MOVE_SOUTH",
+      "afsim_task": "LANDING_MOVE_POINT",
+      "north_m": -8000.0,
+      "east_m": 0.0,
+      "description": "向南移动一个步长。"
+    },
+    {
+      "id": 3,
+      "name": "MOVE_EAST",
+      "afsim_task": "LANDING_MOVE_POINT",
+      "north_m": 0.0,
+      "east_m": 8000.0,
+      "description": "向东移动一个步长。"
+    },
+    {
+      "id": 4,
+      "name": "MOVE_WEST",
+      "afsim_task": "LANDING_MOVE_POINT",
+      "north_m": 0.0,
+      "east_m": -8000.0,
+      "description": "向西移动一个步长。"
+    },
+    {
+      "id": 5,
+      "name": "MOVE_NORTH_EAST",
+      "afsim_task": "LANDING_MOVE_POINT",
+      "north_m": 5657.0,
+      "east_m": 5657.0,
+      "description": "向东北移动一个步长。"
+    },
+    {
+      "id": 6,
+      "name": "MOVE_NORTH_WEST",
+      "afsim_task": "LANDING_MOVE_POINT",
+      "north_m": 5657.0,
+      "east_m": -5657.0,
+      "description": "向西北移动一个步长。"
+    },
+    {
+      "id": 7,
+      "name": "MOVE_SOUTH_EAST",
+      "afsim_task": "LANDING_MOVE_POINT",
+      "north_m": -5657.0,
+      "east_m": 5657.0,
+      "description": "向东南移动一个步长。"
+    },
+    {
+      "id": 8,
+      "name": "MOVE_SOUTH_WEST",
+      "afsim_task": "LANDING_MOVE_POINT",
+      "north_m": -5657.0,
+      "east_m": -5657.0,
+      "description": "向西南移动一个步长。"
+    },
+    {
+      "id": 9,
+      "name": "MOVE_TOWARD_LANDING_ZONE",
+      "afsim_task": "LANDING_MOVE_POINT",
+      "to_landing_zone": true,
+      "move_step_m": 30000.0,
+      "description": "Move one bounded approach step toward the assigned sea-side landing berth."
+    },
+    {
+      "id": 10,
+      "name": "UNLOAD",
+      "afsim_task": "LANDING_UNLOAD",
+      "description": "在登陆区域附近卸载船上陆军。"
+    },
+    {
+      "id": 11,
+      "name": "SPEED_UP",
+      "afsim_task": "LANDING_MOVE_POINT",
+      "speed_delta_mps": 2.0,
+      "forward_m": 2000.0,
+      "description": "Increase the persisted commanded speed and continue forward one sea-safe step."
+    },
+    {
+      "id": 12,
+      "name": "SPEED_DOWN",
+      "afsim_task": "LANDING_MOVE_POINT",
+      "speed_delta_mps": -2.0,
+      "forward_m": 2000.0,
+      "description": "Decrease the persisted commanded speed and continue forward one sea-safe step."
+    }
+  ],
+  "min_speed_mps": 2.0,
+  "max_speed_mps": 13.888889,
+  "default_speed_mps": 6.0
+}

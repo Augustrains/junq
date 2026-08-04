@@ -1,0 +1,90 @@
+{
+  "checkpoint": "D:\\junq\\junq-main\\checkpoints\\linux_native_continue_windows_v2_high_value_radar_sam\\latest.pt",
+  "checkpoint_update": 85,
+  "deterministic": true,
+  "done_reason": "stage_time_limit",
+  "finished_at_utc": "2026-08-04T03:28:37.340161+00:00",
+  "landing_status": {
+    "alive_blue_sams": 5,
+    "attack_alive": 9,
+    "checks": {
+      "attack_viable": true,
+      "landing_window_open": false,
+      "recon_viable": true,
+      "transport_viable": true
+    },
+    "destroyed_blue_air": 4,
+    "landing_combat_conditions_met": false,
+    "landing_force_open_time_seconds": 10800.0,
+    "landing_time_override_met": false,
+    "landing_time_seconds": 1562.629726433712,
+    "landing_trigger_reason": "closed",
+    "loaded_transports": 3,
+    "max_alive_blue_sams": 1,
+    "ready": false,
+    "recon_alive": 10,
+    "required_blue_air_kills": 5
+  },
+  "record_type": "warlock_happo_demonstration",
+  "simulation_seconds": 1562.629726433712,
+  "steps": 50,
+  "success": false,
+  "surviving_units": {
+    "blue": {
+      "alive": 35,
+      "by_role": {
+        "attack_aircraft": {
+          "alive": 6,
+          "total": 10
+        },
+        "base": {
+          "alive": 1,
+          "total": 1
+        },
+        "ground_force": {
+          "alive": 20,
+          "total": 20
+        },
+        "radar": {
+          "alive": 3,
+          "total": 3
+        },
+        "sam": {
+          "alive": 5,
+          "total": 5
+        }
+      },
+      "total": 39
+    },
+    "red": {
+      "alive": 33,
+      "by_role": {
+        "attack_aircraft": {
+          "alive": 9,
+          "total": 10
+        },
+        "carrier": {
+          "alive": 1,
+          "total": 1
+        },
+        "ground_force": {
+          "alive": 10,
+          "total": 10
+        },
+        "recon_aircraft": {
+          "alive": 10,
+          "total": 10
+        },
+        "transport": {
+          "alive": 3,
+          "total": 3
+        }
+      },
+      "total": 34
+    }
+  },
+  "team_reward": 26.25,
+  "terminal_reward": 0.0,
+  "total_reward": 26.25,
+  "wall_seconds": 73.83813079993706
+}

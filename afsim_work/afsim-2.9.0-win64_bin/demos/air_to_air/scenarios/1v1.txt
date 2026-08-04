@@ -1,0 +1,148 @@
+# ****************************************************************************
+# CUI//REL TO USA ONLY
+#
+# The Advanced Framework for Simulation, Integration, and Modeling (AFSIM)
+#
+# The use, dissemination or disclosure of data in this file is subject to
+# limitation or restriction. See accompanying README and LICENSE for details.
+# ****************************************************************************
+
+include_once platforms/lte_fighter.txt
+
+route blue_route
+   position 00:00:36.035n 01:47:21.156e altitude 30000 ft msl speed 900 ft/s
+   position 00:00:36.035n 01:57:21.156e altitude 30000 ft msl speed 900 ft/s
+end_route
+
+route red_route
+   position 00:00:36.035n 01:47:21.156w altitude 30000 ft msl speed 900 ft/s
+   position 00:00:36.035n 01:57:21.156w altitude 30000 ft msl speed 900 ft/s
+end_route
+
+
+
+
+route blue_route_roll
+   
+   label bl
+   position 04:09:31.67n 05:18:40.39w altitude 30000.00 ft msl
+      speed 2740.32 m/s
+   position 05:37:37.31n 08:33:35.41w altitude 30000.00 ft msl
+      speed 2740.32 m/s
+   position 07:43:01.41n 05:59:39.13w altitude 30000.00 ft msl
+      speed 2740.32 m/s
+   goto bl
+end_route
+
+
+
+platform Talon_1_1 BLUE_FIGHTER
+   side blue
+   aux_data
+      string EXTERNAL_TASK = "SWEEP"
+   end_aux_data
+   commander SELF
+   command_chain IFLITE SELF
+   command_chain ELEMENT SELF
+   heading 90 deg
+   position 04:39:17.71n 01:18:19.58w  altitude 30000.00 ft
+   edit fuel
+      maximum_quantity 100000 lbs
+      initial_quantity 100000 lbs
+      bingo_quantity 0 lbs
+   end_fuel
+   script_variables
+      START_TYPE = "route";
+      # RISK_WPN = 0.0;
+      MISSION_TYPE = "SWEEP";
+      ENG_TGT = "";
+      RPEAK_LOC ={1.0,0.8,0.95,1.0,1.0};
+      ROUTE.Append("blue_route");
+      WINCHESTER = {-1,-1,-1,-1,-1};
+   end_script_variables
+
+// if you desire no weapons to be launched
+#  edit weapon fox3
+#     quantity 0 
+#  end_weapon 
+#  edit weapon fox2
+#     quantity 0 
+#  end_weapon
+
+   edit processor assessment
+      enemy_side    red
+      enemy_type    RED_FIGHTER
+      friendly_type BLUE_FIGHTER
+      flight_id     1
+      id_flag       1
+      mission_task  SWEEP      
+   end_processor
+   
+end_platform
+
+platform red_1 RED_FIGHTER 
+   side red
+   commander SELF
+   command_chain IFLITE SELF
+   command_chain ELEMENT SELF
+   heading 270 deg
+   position 05:13:13.45n 00:55:36.17e  altitude 30000.00 ft
+
+   script_variables
+      START_TYPE = "route";
+      # RISK_WPN = 0.0;
+      MISSION_TYPE = "SWEEP";
+      ENG_TGT = "";
+      RPEAK_LOC ={1.0,0.8,0.95,1.0,1.0};
+      ROUTE.Append("red_route");
+      WINCHESTER = {-1,-1,-1,-1,-1};
+   end_script_variables
+
+// if you desire no weapons to be launched
+#  edit weapon fox3
+#     quantity 0 
+#  end_weapon 
+#  edit weapon fox2
+#     quantity 0 
+#  end_weapon
+   
+   edit processor assessment
+      enemy_side    blue
+      enemy_type    BLUE_FIGHTER
+      friendly_type RED_FIGHTER
+      flight_id     202
+      id_flag       2
+      mission_task  SWEEP 
+   end_processor
+   
+end_platform
+platform red_2 AIR_MOVER_FIGHTER
+   position 04:29:30.12n 00:33:54.11e
+   side red
+   heading 270 degrees
+   delete processor assessment
+end_platform
+
+platform green_1 AIR_MOVER_FIGHTER
+   position 04:41:29.533n 00:32:55.216w
+   side Chinese
+   route
+      label OrbitStart
+      position 04:41:29.53n 00:32:55.22w altitude 300000.00 ft agl
+         speed 2230.52 m/s 
+      label Waypoint-1
+         position 06:12:13.27n 00:36:01.02w
+         altitude 300000.00 ft agl 
+      label Waypoint-2
+         position 06:14:56.28n 00:58:00.87e
+         altitude 300000.00 ft agl 
+      label Waypoint-3
+         position 04:40:56.77n 00:58:10.26e
+         altitude 300000.00 ft agl 
+   
+      goto OrbitStart
+   end_route
+   
+   delete processor assessment
+   altitude 300000 feet
+end_platform

@@ -1,0 +1,27 @@
+{
+  "description": "Continuous reconnaissance movement action with east, north, and altitude-change components.",
+  "action_type": "continuous",
+  "continuous_action_fields": [
+    "move_east_norm",
+    "move_north_norm",
+    "altitude_delta_norm"
+  ],
+  "action_dim": 3,
+  "horizontal_step_m": 10000.0,
+  "decision_sim_seconds": 72.0,
+  "altitude_step_m": 1000.0,
+  "direction_deadband": 0.05,
+  "formation_spacing_m": 2500.0,
+  "formation_search_radius_m": 15000.0,
+  "min_speed_mps": 138.888889,
+  "max_speed_mps": 138.888889,
+  "default_speed_mps": 138.888889,
+  "min_altitude_m": 1000.0,
+  "max_altitude_m": 10000.0,
+  "default_altitude_m": 9144.0,
+  "min_formation_spacing_m": 2500.0,
+  "max_formation_spacing_m": 15000.0,
+  "formation_spacing_step_m": 2500.0,
+  "leader_election_seed": 0,
+  "initial_task_altitude_m": 3000.0
+}

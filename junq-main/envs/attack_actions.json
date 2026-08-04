@@ -1,0 +1,46 @@
+{
+  "description": "Discrete attack-aircraft actions: hold, formation return, or attack one permanent blue-unit slot. A target action fires in range and otherwise flies directly toward that target.",
+  "target_slot_count": 38,
+  "fixed_target_slots": true,
+  "actions": [
+    {
+      "id": 0,
+      "name": "HOLD",
+      "description": "Stop at the current position.",
+      "afsim_task": "ATTACK_HOLD",
+      "always_available": true
+    },
+    {
+      "id": 1,
+      "name": "RETURN_HOME",
+      "description": "Return the formation to the carrier for recovery and rearming.",
+      "afsim_task": "RETREAT",
+      "always_available": true
+    },
+    {
+      "id": 2,
+      "name": "ATTACK_TARGET_1",
+      "description": "Attack permanent blue-unit slot 1. Fire if in range; otherwise fly directly toward it.",
+      "afsim_task": "ATTACK_TARGET_SLOT",
+      "target_slot": 0,
+      "always_available": true
+    },
+    {
+      "id": 40,
+      "name": "RETURN_TO_LEADER",
+      "description": "Follower only: return to this aircraft's formation slot beside the current team leader.",
+      "afsim_task": "ATTACK_REJOIN_FORMATION"
+    }
+  ],  "min_speed_mps": 138.888889,
+  "max_speed_mps": 138.888889,
+  "default_speed_mps": 138.888889,
+  "min_altitude_m": 3000,
+  "min_weapon_launch_altitude_m": 3000,
+  "max_altitude_m": 3000,
+  "default_altitude_m": 3000,
+  "formation_spacing_m": 2500,
+  "min_formation_spacing_m": 2500,
+  "max_formation_spacing_m": 15000,
+  "formation_spacing_step_m": 2500,
+  "initial_task_altitude_m": 3000
+}

@@ -1,0 +1,63 @@
+{
+    "description": "Per-aircraft recon observation: own state, team context, friendly-unit slots, enemy-target slots.",
+    "normalization": {
+        "max_distance_m": 250000.0,
+        "max_alt_m": 10000,
+        "max_speed_mps": 138.888889,
+        "max_detected_targets": 50.0,
+        "max_formation_spacing_m": 15000,
+        "max_group_size": 3,
+        "aam_weapon_range_m": 40000,
+        "agm_weapon_range_m": 40000
+    },
+    "fields": [
+        {"name": "alive", "description": "1 if alive."},
+        {"name": "lat_norm", "description": "Own latitude."},
+        {"name": "lon_norm", "description": "Own longitude."},
+        {"name": "alt_norm", "description": "Own altitude."},
+        {"name": "heading_sin", "description": "Sine of own heading."},
+        {"name": "heading_cos", "description": "Cosine of own heading."},
+        {"name": "speed_norm", "description": "Own speed."},
+        {"name": "at_home", "description": "1 if on the carrier."},
+        {"name": "hp_norm", "description": "Own HP ratio."},
+        {"name": "returning_to_carrier", "description": "1 if returning to carrier."},
+        {"name": "is_stationary", "description": "1 when speed <= 1 m/s."},
+
+        {"name": "team_id_norm", "description": "Fixed recon-team identity."},
+        {"name": "is_leader", "description": "1 if this aircraft is the formation leader."},
+        {"name": "distance_to_leader_norm", "description": "Distance to the formation leader; 0 for leader."},
+        {"name": "alive_group_size_norm", "description": "Alive group members / team size."},
+
+        {"name": "friendly_carrier_lat_norm", "description": "Carrier latitude."},
+        {"name": "friendly_carrier_lon_norm", "description": "Carrier longitude."},
+        {"name": "friendly_carrier_aam_stock_norm", "description": "Carrier AAM stock / 30."},
+        {"name": "friendly_carrier_agm_stock_norm", "description": "Carrier AGM stock / 50."},
+
+        {"name": "friendly_recon_1_lat_norm", "description": "Recon aircraft: latitude."},
+        {"name": "friendly_recon_1_lon_norm", "description": "Recon aircraft: longitude."},
+        {"name": "friendly_recon_1_speed_norm", "description": "Recon aircraft: speed."},
+        {"name": "friendly_recon_1_hp_norm", "description": "Recon aircraft: HP ratio."},
+
+        {"name": "friendly_attack_1_lat_norm", "description": "Attack aircraft: latitude."},
+        {"name": "friendly_attack_1_lon_norm", "description": "Attack aircraft: longitude."},
+        {"name": "friendly_attack_1_speed_norm", "description": "Attack aircraft: speed."},
+        {"name": "friendly_attack_1_hp_norm", "description": "Attack aircraft: HP ratio."},
+        {"name": "friendly_attack_1_aam_norm", "description": "Attack aircraft: AAM count."},
+        {"name": "friendly_attack_1_agm_norm", "description": "Attack aircraft: AGM count."},
+
+        {"name": "friendly_ground_1_lat_norm", "description": "Ground force: latitude."},
+        {"name": "friendly_ground_1_lon_norm", "description": "Ground force: longitude."},
+        {"name": "friendly_ground_1_speed_norm", "description": "Ground force: speed."},
+        {"name": "friendly_ground_1_hp_norm", "description": "Ground force: HP ratio."},
+        {"name": "friendly_ground_1_ammo_norm", "description": "Ground force: ammunition / 15."},
+
+        {"name": "target_slot_1_lat_norm", "description": "Enemy target: latitude."},
+        {"name": "target_slot_1_lon_norm", "description": "Enemy target: longitude."},
+        {"name": "target_slot_1_alt_norm", "description": "Enemy target: altitude."},
+        {"name": "target_slot_1_hp_norm", "description": "Enemy target: HP ratio."},
+        {"name": "target_slot_1_aam_ammo_norm", "description": "Enemy air target: AAM count."},
+        {"name": "target_slot_1_agm_ammo_norm", "description": "Enemy air target: AGM count."},
+        {"name": "target_slot_1_ground_ammo_norm", "description": "Enemy ground target: ammo / 15."},
+        {"name": "target_slot_1_sam_ammo_norm", "description": "Enemy SAM target: ammo / 10."}
+    ]
+}

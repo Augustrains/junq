@@ -1,0 +1,3 @@
+[submodule "third_party/mappo_on_policy"]
+	path = third_party/mappo_on_policy
+	url = https://github.com/marlbenchmark/on-policy.git

@@ -1,0 +1,6 @@
+{
+    "event_rewards":  {
+                          "landing_action_masked":  -1,
+                          "retreat_not_ready":  -1
+                      }
+}

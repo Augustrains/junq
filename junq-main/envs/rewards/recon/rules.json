@@ -1,0 +1,8 @@
+{
+    "event_rewards":  {
+                          "recon_task_detection":  0,
+                          "maintained_detection":  0,
+                          "new_detection":  1,
+                          "wait":  -0.01
+                      }
+}

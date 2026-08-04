@@ -1,0 +1,10 @@
+{
+    "description":  "Composed reward design. Fragments are merged at environment startup.",
+    "fragments":  [
+                      "rewards/global/rules.json",
+                      "rewards/recon/rules.json",
+                      "rewards/attack/rules.json",
+                      "rewards/landing/rules.json",
+                      "rewards/ground/rules.json"
+                  ]
+}

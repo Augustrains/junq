@@ -1,0 +1,29 @@
+{
+  "description": "Shared red/blue durability, hit-probability, and ground-combat timing rules.",
+  "max_hp_by_role": {
+    "recon_aircraft": 1.0,
+    "attack_aircraft": 1.0,
+    "sam": 3.0,
+    "radar": 3.0,
+    "ground_force": 5.0
+  },
+  "indestructible_roles": [
+    "carrier",
+    "transport",
+    "base"
+  ],
+  "hit_probability": {
+    "air_to_air": 0.5,
+    "sam_to_air": 0.5,
+    "air_to_air_defense": 0.8,
+    "air_to_ground_force": 0.8,
+    "ground_to_air_defense": 1.0,
+    "ground_to_ground_force": 1.0
+  },
+  "damage_per_hit": 1.0,
+  "ground_combat": {
+    "range_m": 5000.0,
+    "fire_cooldown_sec": 300.0,
+    "combat_lock_sec": 300.0
+  }
+}

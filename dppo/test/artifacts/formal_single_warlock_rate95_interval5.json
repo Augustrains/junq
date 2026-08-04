@@ -1,0 +1,27 @@
+{
+  "requested_clock_rate": 95.0,
+  "requested_decisions_per_sim_hour": 50.0,
+  "requested_step_sim_seconds": 72.0,
+  "requested_step_wall_seconds": 0.7578947368421053,
+  "steps": 50,
+  "sim_elapsed_seconds": 3500.33128836805,
+  "target_sim_elapsed_seconds": 3600.0,
+  "wall_elapsed_seconds": 37.915312999999514,
+  "effective_clock_rate": 92.31972549898494,
+  "effective_decisions_per_sim_hour": 51.42370397857996,
+  "mean_step_sim_seconds": 70.006625767361,
+  "p95_step_sim_seconds": 79.89278479318727,
+  "max_step_sim_seconds": 85.76944133007692,
+  "mean_step_wall_seconds": 0.7581930859999193,
+  "steps_with_sim_progress": 50,
+  "steps_with_platform_updates": 50,
+  "udp_state_update_interval": 5.0,
+  "udp_messages_total": 76826,
+  "udp_messages_per_wall_second": 2026.2525592232612,
+  "udp_message_types": {
+    "MoveUpdate": 41427,
+    "AttackContactReport": 34903,
+    "PlatFormAdd": 496
+  },
+  "passed": true
+}

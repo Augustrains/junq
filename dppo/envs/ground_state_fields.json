@@ -1,0 +1,486 @@
+{
+  "description": "??????????????????????",
+  "fields": [
+    {
+      "name": "alive",
+      "description": "?????"
+    },
+    {
+      "name": "agent_id_norm",
+      "description": "Fixed unit identity within the same controllable unit type, normalized to (0, 1]."
+    },
+    {
+      "name": "group_slot_norm",
+      "description": "Slot index of this unit inside the active task group, normalized to (0, 1]; 0 when unassigned."
+    },
+    {
+      "name": "lat_norm",
+      "description": "??????"
+    },
+    {
+      "name": "lon_norm",
+      "description": "??????"
+    },
+    {
+      "name": "is_busy",
+      "description": "????????????"
+    },
+    {
+      "name": "on_ship",
+      "description": "?????????"
+    },
+    {
+      "name": "landed",
+      "description": "???????"
+    },
+    {
+      "name": "distance_to_objective_norm",
+      "description": "?????????????"
+    },
+    {
+      "name": "bearing_to_objective_norm",
+      "description": "????????????"
+    },
+    {
+      "name": "inside_objective",
+      "description": "???????????"
+    },
+    {
+      "name": "nearest_blue_ground_distance_norm",
+      "description": "??????????????"
+    },
+    {
+      "name": "nearest_blue_ground_bearing_norm",
+      "description": "??????????????"
+    },
+    {
+      "name": "nearest_blue_ground_alive",
+      "description": "?????????????"
+    },
+    {
+      "name": "inside_ground_weapon_range",
+      "description": "?????????????????"
+    },
+    {
+      "name": "ground_ammo_norm",
+      "description": "???????"
+    },
+    {
+      "name": "nearest_blue_air_distance_norm",
+      "description": "??????????????"
+    },
+    {
+      "name": "nearest_blue_sam_distance_norm",
+      "description": "????????????????"
+    },
+    {
+      "name": "near_friendly_ground_count_norm",
+      "description": "????????????"
+    },
+    {
+      "name": "known_blue_ground_count_norm",
+      "description": "????????????"
+    },
+    {
+      "name": "known_blue_radar_count_norm",
+      "description": "????????????"
+    },
+    {
+      "name": "known_blue_sam_count_norm",
+      "description": "???? SAM ??????"
+    },
+    {
+      "name": "objective_blue_presence_norm",
+      "description": "????????????"
+    },
+    {
+      "name": "objective_red_presence_norm",
+      "description": "????????????"
+    },
+    {
+      "name": "capture_progress_norm",
+      "description": "?????"
+    },
+    {
+      "name": "elapsed_ratio",
+      "description": "??????????"
+    },
+    {
+      "name": "task_complete",
+      "description": "?????????"
+    },
+    {
+      "name": "hp_norm",
+      "description": "Own current HP divided by maximum HP."
+    },
+    {
+      "name": "damaged",
+      "description": "1 when alive below maximum HP."
+    },
+    {
+      "name": "fire_cooldown_remaining_norm",
+      "description": "Remaining time before this unit may fire, divided by 300 seconds."
+    },
+    {
+      "name": "combat_lock_remaining_norm",
+      "description": "Remaining forced stationary time, divided by 300 seconds."
+    },
+    {
+      "name": "nearest_blue_ground_hp_norm",
+      "description": "Current HP ratio of the nearest locally detected compatible ground target."
+    },
+    {
+      "name": "task_assigned",
+      "description": "1 while this unit belongs to an active ground task."
+    },
+    {
+      "name": "is_stationary",
+      "description": "1 when actual unit speed is at or below 1 m/s."
+    },
+    {
+      "name": "speed_norm",
+      "description": "Actual unit speed normalized by max_speed_mps."
+    },
+    {
+      "name": "heading_sin",
+      "description": "Sine of the unit's actual heading reported by AFSIM."
+    },
+    {
+      "name": "heading_cos",
+      "description": "Cosine of the unit's actual heading reported by AFSIM."
+    },
+    {
+      "name": "last_action_id_norm",
+      "description": "Last ground action id divided by the largest configured ground action id."
+    },
+    {
+      "name": "target_slot_1_exists",
+      "description": "1 when this compatible ground target slot is occupied."
+    },
+    {
+      "name": "target_slot_1_known",
+      "description": "1 when this fixed target is currently detected by red ground forces."
+    },
+    {
+      "name": "target_slot_1_distance_norm",
+      "description": "Distance to this target normalized by max_distance_m."
+    },
+    {
+      "name": "target_slot_1_bearing_sin",
+      "description": "Sine of bearing to this target."
+    },
+    {
+      "name": "target_slot_1_bearing_cos",
+      "description": "Cosine of bearing to this target."
+    },
+    {
+      "name": "target_slot_1_hp_norm",
+      "description": "Current HP ratio of this target."
+    },
+    {
+      "name": "target_slot_1_is_ground_force",
+      "description": "1 when this target is an enemy ground-force unit."
+    },
+    {
+      "name": "target_slot_1_is_radar",
+      "description": "1 when this target is an enemy radar facility."
+    },
+    {
+      "name": "target_slot_1_is_sam",
+      "description": "1 when this target is an enemy SAM facility."
+    },
+    {
+      "name": "target_slot_1_in_weapon_range",
+      "description": "1 when this target is inside ground_weapon_range_m."
+    },
+    {
+      "name": "target_slot_2_exists",
+      "description": "1 when this compatible ground target slot is occupied."
+    },
+    {
+      "name": "target_slot_2_known",
+      "description": "1 when this fixed target is currently detected by red ground forces."
+    },
+    {
+      "name": "target_slot_2_distance_norm",
+      "description": "Distance to this target normalized by max_distance_m."
+    },
+    {
+      "name": "target_slot_2_bearing_sin",
+      "description": "Sine of bearing to this target."
+    },
+    {
+      "name": "target_slot_2_bearing_cos",
+      "description": "Cosine of bearing to this target."
+    },
+    {
+      "name": "target_slot_2_hp_norm",
+      "description": "Current HP ratio of this target."
+    },
+    {
+      "name": "target_slot_2_is_ground_force",
+      "description": "1 when this target is an enemy ground-force unit."
+    },
+    {
+      "name": "target_slot_2_is_radar",
+      "description": "1 when this target is an enemy radar facility."
+    },
+    {
+      "name": "target_slot_2_is_sam",
+      "description": "1 when this target is an enemy SAM facility."
+    },
+    {
+      "name": "target_slot_2_in_weapon_range",
+      "description": "1 when this target is inside ground_weapon_range_m."
+    },
+    {
+      "name": "target_slot_3_exists",
+      "description": "1 when this compatible ground target slot is occupied."
+    },
+    {
+      "name": "target_slot_3_known",
+      "description": "1 when this fixed target is currently detected by red ground forces."
+    },
+    {
+      "name": "target_slot_3_distance_norm",
+      "description": "Distance to this target normalized by max_distance_m."
+    },
+    {
+      "name": "target_slot_3_bearing_sin",
+      "description": "Sine of bearing to this target."
+    },
+    {
+      "name": "target_slot_3_bearing_cos",
+      "description": "Cosine of bearing to this target."
+    },
+    {
+      "name": "target_slot_3_hp_norm",
+      "description": "Current HP ratio of this target."
+    },
+    {
+      "name": "target_slot_3_is_ground_force",
+      "description": "1 when this target is an enemy ground-force unit."
+    },
+    {
+      "name": "target_slot_3_is_radar",
+      "description": "1 when this target is an enemy radar facility."
+    },
+    {
+      "name": "target_slot_3_is_sam",
+      "description": "1 when this target is an enemy SAM facility."
+    },
+    {
+      "name": "target_slot_3_in_weapon_range",
+      "description": "1 when this target is inside ground_weapon_range_m."
+    },
+    {
+      "name": "target_slot_4_exists",
+      "description": "1 when this compatible ground target slot is occupied."
+    },
+    {
+      "name": "target_slot_4_known",
+      "description": "1 when this fixed target is currently detected by red ground forces."
+    },
+    {
+      "name": "target_slot_4_distance_norm",
+      "description": "Distance to this target normalized by max_distance_m."
+    },
+    {
+      "name": "target_slot_4_bearing_sin",
+      "description": "Sine of bearing to this target."
+    },
+    {
+      "name": "target_slot_4_bearing_cos",
+      "description": "Cosine of bearing to this target."
+    },
+    {
+      "name": "target_slot_4_hp_norm",
+      "description": "Current HP ratio of this target."
+    },
+    {
+      "name": "target_slot_4_is_ground_force",
+      "description": "1 when this target is an enemy ground-force unit."
+    },
+    {
+      "name": "target_slot_4_is_radar",
+      "description": "1 when this target is an enemy radar facility."
+    },
+    {
+      "name": "target_slot_4_is_sam",
+      "description": "1 when this target is an enemy SAM facility."
+    },
+    {
+      "name": "target_slot_4_in_weapon_range",
+      "description": "1 when this target is inside ground_weapon_range_m."
+    },
+    {
+      "name": "target_slot_5_exists",
+      "description": "1 when this compatible ground target slot is occupied."
+    },
+    {
+      "name": "target_slot_5_known",
+      "description": "1 when this fixed target is currently detected by red ground forces."
+    },
+    {
+      "name": "target_slot_5_distance_norm",
+      "description": "Distance to this target normalized by max_distance_m."
+    },
+    {
+      "name": "target_slot_5_bearing_sin",
+      "description": "Sine of bearing to this target."
+    },
+    {
+      "name": "target_slot_5_bearing_cos",
+      "description": "Cosine of bearing to this target."
+    },
+    {
+      "name": "target_slot_5_hp_norm",
+      "description": "Current HP ratio of this target."
+    },
+    {
+      "name": "target_slot_5_is_ground_force",
+      "description": "1 when this target is an enemy ground-force unit."
+    },
+    {
+      "name": "target_slot_5_is_radar",
+      "description": "1 when this target is an enemy radar facility."
+    },
+    {
+      "name": "target_slot_5_is_sam",
+      "description": "1 when this target is an enemy SAM facility."
+    },
+    {
+      "name": "target_slot_5_in_weapon_range",
+      "description": "1 when this target is inside ground_weapon_range_m."
+    },
+    {
+      "name": "target_slot_6_exists",
+      "description": "1 when this compatible ground target slot is occupied."
+    },
+    {
+      "name": "target_slot_6_known",
+      "description": "1 when this fixed target is currently detected by red ground forces."
+    },
+    {
+      "name": "target_slot_6_distance_norm",
+      "description": "Distance to this target normalized by max_distance_m."
+    },
+    {
+      "name": "target_slot_6_bearing_sin",
+      "description": "Sine of bearing to this target."
+    },
+    {
+      "name": "target_slot_6_bearing_cos",
+      "description": "Cosine of bearing to this target."
+    },
+    {
+      "name": "target_slot_6_hp_norm",
+      "description": "Current HP ratio of this target."
+    },
+    {
+      "name": "target_slot_6_is_ground_force",
+      "description": "1 when this target is an enemy ground-force unit."
+    },
+    {
+      "name": "target_slot_6_is_radar",
+      "description": "1 when this target is an enemy radar facility."
+    },
+    {
+      "name": "target_slot_6_is_sam",
+      "description": "1 when this target is an enemy SAM facility."
+    },
+    {
+      "name": "target_slot_6_in_weapon_range",
+      "description": "1 when this target is inside ground_weapon_range_m."
+    },
+    {
+      "name": "target_slot_7_exists",
+      "description": "1 when this compatible ground target slot is occupied."
+    },
+    {
+      "name": "target_slot_7_known",
+      "description": "1 when this fixed target is currently detected by red ground forces."
+    },
+    {
+      "name": "target_slot_7_distance_norm",
+      "description": "Distance to this target normalized by max_distance_m."
+    },
+    {
+      "name": "target_slot_7_bearing_sin",
+      "description": "Sine of bearing to this target."
+    },
+    {
+      "name": "target_slot_7_bearing_cos",
+      "description": "Cosine of bearing to this target."
+    },
+    {
+      "name": "target_slot_7_hp_norm",
+      "description": "Current HP ratio of this target."
+    },
+    {
+      "name": "target_slot_7_is_ground_force",
+      "description": "1 when this target is an enemy ground-force unit."
+    },
+    {
+      "name": "target_slot_7_is_radar",
+      "description": "1 when this target is an enemy radar facility."
+    },
+    {
+      "name": "target_slot_7_is_sam",
+      "description": "1 when this target is an enemy SAM facility."
+    },
+    {
+      "name": "target_slot_7_in_weapon_range",
+      "description": "1 when this target is inside ground_weapon_range_m."
+    },
+    {
+      "name": "target_slot_8_exists",
+      "description": "1 when this compatible ground target slot is occupied."
+    },
+    {
+      "name": "target_slot_8_known",
+      "description": "1 when this fixed target is currently detected by red ground forces."
+    },
+    {
+      "name": "target_slot_8_distance_norm",
+      "description": "Distance to this target normalized by max_distance_m."
+    },
+    {
+      "name": "target_slot_8_bearing_sin",
+      "description": "Sine of bearing to this target."
+    },
+    {
+      "name": "target_slot_8_bearing_cos",
+      "description": "Cosine of bearing to this target."
+    },
+    {
+      "name": "target_slot_8_hp_norm",
+      "description": "Current HP ratio of this target."
+    },
+    {
+      "name": "target_slot_8_is_ground_force",
+      "description": "1 when this target is an enemy ground-force unit."
+    },
+    {
+      "name": "target_slot_8_is_radar",
+      "description": "1 when this target is an enemy radar facility."
+    },
+    {
+      "name": "target_slot_8_is_sam",
+      "description": "1 when this target is an enemy SAM facility."
+    },
+    {
+      "name": "target_slot_8_in_weapon_range",
+      "description": "1 when this target is inside ground_weapon_range_m."
+    }
+  ],
+  "normalization": {
+    "max_distance_m": 200000.0,
+    "ground_weapon_range_m": 5000.0,
+    "ground_detect_range_m": 10000.0,
+    "objective_radius_m": 100.0,
+    "friendly_near_radius_m": 3000.0,
+    "max_speed_mps": 10.0,
+    "max_elapsed_steps": 360.0
+  }
+}

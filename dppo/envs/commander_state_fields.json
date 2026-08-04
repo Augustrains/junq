@@ -1,0 +1,25 @@
+{
+  "normalization": {
+    "max_distance_m": 300000.0,
+    "max_track_age_seconds": 3600.0
+  },
+  "description": "Minimal global task-level state retained by the centralized critic after Commander deprecation.",
+  "fields": [
+    {
+      "name": "progress",
+      "description": "Episode progress in [0, 1]."
+    },
+    {
+      "name": "landing_window_open",
+      "description": "Whether the current suppression rules allow landing."
+    },
+    {
+      "name": "landing_stage_id",
+      "description": "Three-level landing phase: 0 before landing is allowed, 1 landing is allowed but no army is ashore yet, 2 at least one ground unit has landed ashore."
+    },
+    {
+      "name": "capture_condition",
+      "description": "Whether a ground objective is occupied by red ground forces with no blue ground presence."
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+    "description":  "Shared team reward, combat value, milestones, limits, and reward switches.",
+    "negative_rewards_enabled":  false,
+    "delta_rewards":  {
+                          "landing_window_opened":  25,
+                          "capture_condition_reached":  50
+                      },
+    "combat_positive_rewards":  {
+                                    "description":  "Combat reward is fixed per lost HP and an additional destruction bonus. Enemy aircraft are highest value, then radar, then SAM; ground-force damage and destruction pay zero.",
+                                    "recon_contributor_fraction":  0.2,
+                                    "by_target_role":  {
+                                                           "attack_aircraft":  {
+                                                                                   "damage_per_hp":  20,
+                                                                                   "destroyed":  60
+                                                                               },
+                                                           "radar":  {
+                                                                         "damage_per_hp":  12,
+                                                                         "destroyed":  40
+                                                                     },
+                                                           "sam":  {
+                                                                       "damage_per_hp":  8,
+                                                                       "destroyed":  25
+                                                                   },
+                                                           "ground_force":  {
+                                                                                "damage_per_hp":  0,
+                                                                                "destroyed":  0
+                                                                            }
+                                                       }
+                                },
+    "limits":  {
+                   "min_reward":  -100,
+                   "max_reward":  100
+               }
+}

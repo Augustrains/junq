@@ -1,0 +1,102 @@
+# Ground icon preview scene. Open this file in Warlock to compare platform icon sizes/styles.
+
+platform_type PREVIEW_INFANTRY WSF_PLATFORM
+   icon infantry spatial_domain land category GROUND_FORCE
+end_platform_type
+
+platform_type PREVIEW_HUMAN WSF_PLATFORM
+   icon human spatial_domain land category GROUND_FORCE
+end_platform_type
+
+platform_type PREVIEW_TARGET WSF_PLATFORM
+   icon target spatial_domain land category GROUND_FORCE
+end_platform_type
+
+platform_type PREVIEW_BULLSEYE WSF_PLATFORM
+   icon Bullseye spatial_domain land category GROUND_FORCE
+end_platform_type
+
+platform_type PREVIEW_BULLSEYE_TEAM WSF_PLATFORM
+   icon Bullseye_team spatial_domain land category GROUND_FORCE
+end_platform_type
+
+platform_type PREVIEW_MARKER WSF_PLATFORM
+   icon marker spatial_domain land category GROUND_FORCE
+end_platform_type
+
+platform_type PREVIEW_POI WSF_PLATFORM
+   icon poi spatial_domain land category GROUND_FORCE
+end_platform_type
+
+platform_type PREVIEW_WAYPOINT WSF_PLATFORM
+   icon waypoint spatial_domain land category GROUND_FORCE
+end_platform_type
+
+platform_type PREVIEW_X_MARKER WSF_PLATFORM
+   icon x_marker spatial_domain land category GROUND_FORCE
+end_platform_type
+
+platform_type PREVIEW_TWIN_BOX WSF_PLATFORM
+   icon TWIN_BOX spatial_domain land category GROUND_FORCE
+end_platform_type
+
+platform_type PREVIEW_C4I WSF_PLATFORM
+   icon C4I spatial_domain land category GROUND_FORCE
+end_platform_type
+
+platform_type PREVIEW_CMD_POST WSF_PLATFORM
+   icon cmd_post spatial_domain land category GROUND_FORCE
+end_platform_type
+
+platform_type PREVIEW_COMMAND_TRUCK WSF_PLATFORM
+   icon command_truck spatial_domain land category GROUND_FORCE
+end_platform_type
+
+platform_type PREVIEW_PICKUP_TRUCK WSF_PLATFORM
+   icon pickup_truck spatial_domain land category GROUND_FORCE
+end_platform_type
+
+platform_type PREVIEW_HUMMVEE WSF_PLATFORM
+   icon hummvee spatial_domain land category GROUND_FORCE
+end_platform_type
+
+platform_type PREVIEW_M1A1 WSF_PLATFORM
+   icon m1a1 spatial_domain land category GROUND_FORCE
+end_platform_type
+
+platform_type PREVIEW_M2A WSF_PLATFORM
+   icon m2a spatial_domain land category GROUND_FORCE
+end_platform_type
+
+platform_type PREVIEW_BMP_2 WSF_PLATFORM
+   icon bmp-2 spatial_domain land category GROUND_FORCE
+end_platform_type
+
+platform_type PREVIEW_BTR_60 WSF_PLATFORM
+   icon btr-60 spatial_domain land category GROUND_FORCE
+end_platform_type
+
+platform_type PREVIEW_TANK WSF_PLATFORM
+   icon tank spatial_domain land category GROUND_FORCE
+end_platform_type
+
+platform preview_infantry PREVIEW_INFANTRY side red heading 0 deg position 24:31:00.000n 120:20:00.000e altitude 0 ft agl end_platform
+platform preview_human PREVIEW_HUMAN side red heading 0 deg position 24:31:00.000n 120:24:00.000e altitude 0 ft agl end_platform
+platform preview_target PREVIEW_TARGET side red heading 0 deg position 24:31:00.000n 120:28:00.000e altitude 0 ft agl end_platform
+platform preview_bullseye PREVIEW_BULLSEYE side red heading 0 deg position 24:31:00.000n 120:32:00.000e altitude 0 ft agl end_platform
+platform preview_bullseye_team PREVIEW_BULLSEYE_TEAM side red heading 0 deg position 24:31:00.000n 120:36:00.000e altitude 0 ft agl end_platform
+platform preview_marker PREVIEW_MARKER side red heading 0 deg position 24:31:00.000n 120:40:00.000e altitude 0 ft agl end_platform
+platform preview_poi PREVIEW_POI side red heading 0 deg position 24:31:00.000n 120:44:00.000e altitude 0 ft agl end_platform
+platform preview_waypoint PREVIEW_WAYPOINT side red heading 0 deg position 24:31:00.000n 120:48:00.000e altitude 0 ft agl end_platform
+platform preview_x_marker PREVIEW_X_MARKER side red heading 0 deg position 24:31:00.000n 120:52:00.000e altitude 0 ft agl end_platform
+platform preview_twin_box PREVIEW_TWIN_BOX side red heading 0 deg position 24:31:00.000n 120:56:00.000e altitude 0 ft agl end_platform
+platform preview_c4i PREVIEW_C4I side red heading 0 deg position 24:26:00.000n 120:20:00.000e altitude 0 ft agl end_platform
+platform preview_cmd_post PREVIEW_CMD_POST side red heading 0 deg position 24:26:00.000n 120:24:00.000e altitude 0 ft agl end_platform
+platform preview_command_truck PREVIEW_COMMAND_TRUCK side red heading 0 deg position 24:26:00.000n 120:28:00.000e altitude 0 ft agl end_platform
+platform preview_pickup_truck PREVIEW_PICKUP_TRUCK side red heading 0 deg position 24:26:00.000n 120:32:00.000e altitude 0 ft agl end_platform
+platform preview_hummvee PREVIEW_HUMMVEE side red heading 0 deg position 24:26:00.000n 120:36:00.000e altitude 0 ft agl end_platform
+platform preview_m1a1 PREVIEW_M1A1 side red heading 0 deg position 24:26:00.000n 120:40:00.000e altitude 0 ft agl end_platform
+platform preview_m2a PREVIEW_M2A side red heading 0 deg position 24:26:00.000n 120:44:00.000e altitude 0 ft agl end_platform
+platform preview_bmp_2 PREVIEW_BMP_2 side red heading 0 deg position 24:26:00.000n 120:48:00.000e altitude 0 ft agl end_platform
+platform preview_btr_60 PREVIEW_BTR_60 side red heading 0 deg position 24:26:00.000n 120:52:00.000e altitude 0 ft agl end_platform
+platform preview_tank PREVIEW_TANK side red heading 0 deg position 24:26:00.000n 120:56:00.000e altitude 0 ft agl end_platform

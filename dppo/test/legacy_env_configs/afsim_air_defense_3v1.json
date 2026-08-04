@@ -1,0 +1,11 @@
+{
+  "extends": "afsim_units.json",
+  "scenario": {
+    "name": "island_assault_air_defense_3v1",
+    "scenario_file": "scenarios/island_assault_air_defense_3v1.txt",
+    "warlock_log_path": "D:/junq/dppo/warlock_air_defense_3v1.log"
+  },
+  "stage_initial_state": {
+    "platform_states_file": "air_defense_3v1_destroyed_platform_states.json"
+  }
+}

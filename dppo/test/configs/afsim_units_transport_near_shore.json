@@ -1,0 +1,10 @@
+{
+  "extends": "afsim_units.json",
+  "scenario": {
+    "name": "island_assault_transport_near_shore",
+    "scenario_file": "scenarios/island_assault_transport_near_shore.txt",
+    "warlock_log_path": "D:/junq/dppo/warlock_transport_near_shore.log",
+    "landing_shore_stop_offset_m": 100.0,
+    "landing_shore_arrival_tolerance_m": 200.0
+  }
+}

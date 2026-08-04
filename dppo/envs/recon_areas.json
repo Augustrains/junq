@@ -1,0 +1,41 @@
+{
+  "shape": "cylinder",
+  "areas": [
+    {
+      "name": "western_screen",
+      "description": "Western blue ground-force, radar, and SAM screen.",
+      "center_lat": 24.98,
+      "center_lon": 121.055,
+      "radius_m": 14000.0,
+      "altitude_min_m": 3000.0,
+      "altitude_max_m": 10000.0,
+      "default_alt_m": 9144.0,
+      "duration_sec": 300.0,
+      "priority": 1
+    },
+    {
+      "name": "base_defense",
+      "description": "Blue base, aircraft, and central defensive belt.",
+      "center_lat": 24.99,
+      "center_lon": 121.19,
+      "radius_m": 15000.0,
+      "altitude_min_m": 3000.0,
+      "altitude_max_m": 10000.0,
+      "default_alt_m": 9144.0,
+      "duration_sec": 300.0,
+      "priority": 2
+    },
+    {
+      "name": "eastern_screen",
+      "description": "Eastern radar, SAM, and dispersed ground-force screen.",
+      "center_lat": 25.04,
+      "center_lon": 121.38,
+      "radius_m": 19000.0,
+      "altitude_min_m": 3000.0,
+      "altitude_max_m": 10000.0,
+      "default_alt_m": 9144.0,
+      "duration_sec": 360.0,
+      "priority": 3
+    }
+  ]
+}
