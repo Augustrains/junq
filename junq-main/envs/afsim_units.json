@@ -1,6 +1,6 @@
 {
     "scenario":  {
-                     "name":  "island_assault_min",
+                     "name":  "island_assault_happo_demo",
                      "local_address":  [
                                            "0.0.0.0",
                                            50050
@@ -16,7 +16,7 @@
                      "attack_group_size":  3,
                      "warlock_path":  "D:/junq/afsim_work/afsim-2.9.0-win64_bin/bin_release/warlock.exe",
                      "scenario_dir":  "D:/junq/afsim_work/afsim-2.9.0-win64_bin/demos/air_to_air",
-                     "scenario_file":  "scenarios/island_assault_min.txt",
+                     "scenario_file":  "scenarios/island_assault_happo_demo.txt",
                      "warlock_log_path":  "D:/junq/dppo/warlock_runtime.log",
                      "warlock_args":  [
                                           "-log-server-host",

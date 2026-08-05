@@ -499,8 +499,12 @@ class AFSIMRLInterface(object):
             max_distance = max(1.0, float(normalization.get("max_distance_m", 400000.0)))
             before_mean = sum(item[0] for item in samples) / len(samples)
             after_mean = sum(item[1] for item in samples) / len(samples)
-            progress = max(0.0, (before_mean - after_mean) / max_distance)
+            # Signed distance progress: approaching the current target is
+            # rewarded, while moving away is penalized for reconnaissance.
+            progress = (before_mean - after_mean) / max_distance
             progress *= float(self.env.reward_movement_scale(agent_type))
+            if agent_type != "recon":
+                progress = max(0.0, progress)
             priority_multiplier = 1.0
             if agent_type == "recon":
                 priority_rules = getattr(self.env, "reward_target_priority_config", {})
@@ -514,7 +518,7 @@ class AFSIMRLInterface(object):
                     0.0, float(target.get("effective_priority", 0.0))
                 ) / priority_normalizer
                 progress *= priority_multiplier
-            if progress <= 0.0:
+            if progress == 0.0:
                 continue
             reward_members = list(members)
             if agent_type == "recon":
@@ -534,6 +538,7 @@ class AFSIMRLInterface(object):
                     name,
                     "group_move_toward_{0}_target".format(agent_type),
                     progress,
+                    allow_negative=(agent_type == "recon"),
                 )
                 details[-1].update({
                     "reward_target": target["name"],
@@ -758,9 +763,9 @@ class AFSIMRLInterface(object):
             return
         delta = float(after_obs.get(field, 0.0)) - float(before_obs.get(field, 0.0))
         self._add_local_detail(rewards, details, entity_name, field + "_transition", delta * float(scale))
-    def _add_local_detail(self, rewards: Dict[str, float], details: list, entity_name: str, reward_type: str, value: float, event=None):
+    def _add_local_detail(self, rewards: Dict[str, float], details: list, entity_name: str, reward_type: str, value: float, event=None, allow_negative: bool = False):
         raw_value = float(value)
-        value = self._apply_negative_reward_switch(raw_value)
+        value = raw_value if allow_negative else self._apply_negative_reward_switch(raw_value)
         if raw_value == 0.0:
             return
         rewards[entity_name] = float(rewards.get(entity_name, 0.0)) + value
@@ -840,14 +845,20 @@ class AFSIMRLInterface(object):
             return [0.0, 0.0, 0.0]
         return np.clip(values, -1.0, 1.0).astype(np.float32).tolist()
 
-    def _apply_task_action(self, agent_type: str, group_id: str, entity_name: str, action) -> bool:
+    def _apply_task_action(
+        self, agent_type: str, group_id: str, entity_name: str, action,
+        allow_locked_return: bool = False,
+    ) -> bool:
         if agent_type == "recon":
             return bool(self.env.apply_recon_aircraft_continuous_action(
                 group_id, entity_name, self._continuous_recon_action(action)
             ))
         action_id = int(action)
         if agent_type == "attack":
-            return bool(self.env.apply_attack_aircraft_action(group_id, entity_name, action_id))
+            return bool(self.env.apply_attack_aircraft_action(
+                group_id, entity_name, action_id,
+                _allow_locked_return=allow_locked_return,
+            ))
         if agent_type == "landing":
             return bool(self.env.apply_landing_ship_action(group_id, entity_name, action_id))
         if agent_type == "ground":
@@ -876,12 +887,42 @@ class AFSIMRLInterface(object):
         requested_sent = self._apply_task_action(
             agent_type, group_id, entity_name, requested_action_id
         )
-        fallback_to_hold = requested_action_id != 0 and not requested_sent
-        executed_action_id = 0 if fallback_to_hold else requested_action_id
+        fallback_to_return = (
+            agent_type == "attack"
+            and requested_action_id != 1
+            and not requested_sent
+        )
+        return_action_id = -1
+        if fallback_to_return:
+            return_action_id = next(
+                (
+                    int(spec.get("id", -1))
+                    for spec in self._action_table_for("attack")
+                    if str(spec.get("name", "")) == "RETURN_HOME"
+                ),
+                -1,
+            )
+            fallback_to_return = return_action_id >= 0
+
+        fallback_to_hold = (
+            agent_type != "attack"
+            and requested_action_id != 0
+            and not requested_sent
+        )
+        executed_action_id = (
+            return_action_id if fallback_to_return
+            else (0 if fallback_to_hold else requested_action_id)
+        )
         sent = (
-            self._apply_task_action(agent_type, group_id, entity_name, 0)
-            if fallback_to_hold
-            else requested_sent
+            self._apply_task_action(
+                agent_type, group_id, entity_name, return_action_id,
+                allow_locked_return=True,
+            )
+            if fallback_to_return
+            else (
+                self._apply_task_action(agent_type, group_id, entity_name, 0)
+                if fallback_to_hold else requested_sent
+            )
         )
         return {
             "action_id": int(executed_action_id),
@@ -890,6 +931,7 @@ class AFSIMRLInterface(object):
             "requested_sent": bool(requested_sent),
             "sent": bool(sent),
             "fallback_to_hold": bool(fallback_to_hold),
+            "fallback_to_return": bool(fallback_to_return),
         }
 
     def _persistent_entity_names(self, agent_type: str) -> Iterable[str]:

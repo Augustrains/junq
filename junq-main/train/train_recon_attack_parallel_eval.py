@@ -264,7 +264,12 @@ def run_evaluation(args, worker, trainer, update_id, training_steps, training_ep
     env.native_decision_ready_seen = False
     env.native_decision_ready_time = float("-inf")
 
-    start_worker(args, worker)
+    reuse_setting = os.environ.get("EVALUATION_REUSE_RUNNING_SCENARIO", "")
+    reuse_running = (reuse_setting.lower() in ("1", "true", "yes", "on")) if reuse_setting else bool(args.native_decision_pause)
+    if reuse_running:
+        print("evaluation_reusing_paused_scenario", worker["id"], flush=True)
+    else:
+        start_worker(args, worker)
     collector = worker["collector"]
     team_reward = 0.0
     started_at = time.monotonic()
