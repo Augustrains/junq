@@ -1,5 +1,5 @@
 include_once ../weapons/aam/medium_range_radar_missile.txt
-include_once ../../alternate_locations/weapons/agm/blue_gps_bomb_1.txt
+include_once ../../base_types/weapons/agm/mach_4_missile.txt
 
 #udpnet
 #   port 50052
@@ -83,7 +83,8 @@ script void IslandWeaponFired(WsfWeaponEngagement aEngagement, WsfTrack aTargetT
 end_script
 
 
-script double CombatHitProbability(string weaponName, WsfPlatform target)
+script double CombatHitProbability(string shooterName, string weaponName, WsfPlatform target)
+   if (weaponName == "fox3" && shooterName.StartsWith("red_")) { return 0.50; }
    if (weaponName == "fox3" || weaponName == "sam") { return 0.50; }
    if (weaponName == "agm") { return 0.80; }
    if (weaponName == "ground_fire") { return 1.00; }
@@ -108,7 +109,7 @@ script void ApplyCombatDamage(string shooterName, string weaponName, WsfPlatform
               " probability=0 roll=-1 result=IMMUNE hp_remaining=", currentHp);
       return;
    }
-   double probability = CombatHitProbability(weaponName, target);
+   double probability = CombatHitProbability(shooterName, weaponName, target);
    double roll = MATH.RandomUniform();
    if (roll > probability)
    {
@@ -475,35 +476,52 @@ script void IslandWeaponTerminated(WsfWeaponEngagement aEngagement)
                             aEngagement.WeaponSystemName(), ",observer,", aEngagement.TargetPlatformName(), ",",
                             aEngagement.MissDistance(), ",-1,-1,false,", aEngagement.ExtendedResult()));
    WsfPlatform resolvedTarget = WsfSimulation.FindPlatform(aEngagement.TargetPlatformName());
-   if (resolvedTarget != null)
+   if (resolvedTarget != null && aEngagement.WeaponSystemName() != "agm")
    {
       resolvedTarget.SetAuxData("AIR_WEAPON_RESOLVED_TIME", TIME_NOW);
    }
-   WsfPlatform terminatedWeapon = WsfSimulation.FindPlatform(aEngagement.WeaponPlatformName());
-   if (aEngagement.WeaponSystemName() == "agm" && terminatedWeapon != null &&
-       (!terminatedWeapon.AuxDataExists("SCRIPT_CONTACT_RESOLVED") ||
-        !terminatedWeapon.AuxDataBool("SCRIPT_CONTACT_RESOLVED")) &&
-       (!terminatedWeapon.AuxDataExists("SCRIPT_DAMAGE_APPLIED") ||
-        !terminatedWeapon.AuxDataBool("SCRIPT_DAMAGE_APPLIED")))
+   if (aEngagement.WeaponSystemName() == "agm")
    {
-      string contactWeaponName = "blue_agm";
+      WsfPlatform terminatedWeapon = WsfSimulation.FindPlatform(aEngagement.WeaponPlatformName());
+      int pendingMatch = -1;
       for (int pendingIndex = 0; pendingIndex < AIR_PENDING_PLATFORM_NAMES.Size(); pendingIndex = pendingIndex + 1)
       {
-         if (AIR_PENDING_PLATFORM_NAMES[pendingIndex] == aEngagement.WeaponPlatformName())
+         bool platformMatch = AIR_PENDING_PLATFORM_NAMES[pendingIndex] != "" &&
+                              AIR_PENDING_PLATFORM_NAMES[pendingIndex] == aEngagement.WeaponPlatformName();
+         bool shooterFallback = AIR_PENDING_SHOOTERS[pendingIndex] == aEngagement.FiringPlatformName() &&
+                                (AIR_PENDING_WEAPONS[pendingIndex] == "red_agm" ||
+                                 AIR_PENDING_WEAPONS[pendingIndex] == "blue_agm");
+         if (platformMatch || (pendingMatch < 0 && shooterFallback))
          {
-            contactWeaponName = AIR_PENDING_WEAPONS[pendingIndex];
+            pendingMatch = pendingIndex;
+            if (platformMatch) { break; }
          }
       }
-      WsfPlatform terminalContact = FindAirMissileContact(
-         contactWeaponName, terminatedWeapon.Location().Latitude(),
-         terminatedWeapon.Location().Longitude(), terminatedWeapon.Altitude());
-      if (terminalContact != null)
+      if (pendingMatch >= 0)
       {
-         terminatedWeapon.SetAuxData("SCRIPT_CONTACT_RESOLVED", true);
-         terminatedWeapon.SetAuxData("SCRIPT_RESOLUTION_LOGGED", true);
-         terminatedWeapon.SetAuxData("SCRIPT_DAMAGE_APPLIED", true);
-         ApplyCombatDamage(aEngagement.FiringPlatformName(), "agm", terminalContact);
-         terminalContact.SetAuxData("AIR_WEAPON_RESOLVED_TIME", TIME_NOW);
+         WsfPlatform terminalContact = WsfSimulation.FindPlatform(AIR_PENDING_TARGETS[pendingMatch]);
+         bool alreadyResolved = terminalContact != null &&
+                                terminalContact.AuxDataExists("AIR_WEAPON_RESOLVED_TIME") &&
+                                terminalContact.AuxDataDouble("AIR_WEAPON_RESOLVED_TIME") >= AIR_PENDING_LAUNCH_TIMES[pendingMatch];
+         bool weaponAlreadyResolved = terminatedWeapon != null &&
+                                      ((terminatedWeapon.AuxDataExists("SCRIPT_CONTACT_RESOLVED") &&
+                                        terminatedWeapon.AuxDataBool("SCRIPT_CONTACT_RESOLVED")) ||
+                                       (terminatedWeapon.AuxDataExists("SCRIPT_DAMAGE_APPLIED") &&
+                                        terminatedWeapon.AuxDataBool("SCRIPT_DAMAGE_APPLIED")));
+         if (terminalContact != null && !alreadyResolved && !weaponAlreadyResolved)
+         {
+            if (terminatedWeapon != null)
+            {
+               terminatedWeapon.SetAuxData("SCRIPT_CONTACT_RESOLVED", true);
+               terminatedWeapon.SetAuxData("SCRIPT_RESOLUTION_LOGGED", true);
+               terminatedWeapon.SetAuxData("SCRIPT_DAMAGE_APPLIED", true);
+            }
+            TraceRedAttack(write_str("WEAPON_HIT,", TIME_NOW, ",",
+                                     aEngagement.FiringPlatformName(), ",agm,scripted,",
+                                     AIR_PENDING_TARGETS[pendingMatch], ",0,-1,-1,true,terminal_contact"));
+            ApplyCombatDamage(aEngagement.FiringPlatformName(), "agm", terminalContact);
+            terminalContact.SetAuxData("AIR_WEAPON_RESOLVED_TIME", TIME_NOW);
+         }
       }
    }
 end_script
@@ -592,7 +610,7 @@ execute at_interval_of 0.1 sec
       // settle the pending AGM against its declared target exactly once.
       bool agmFallbackContact = false;
       if ((AIR_PENDING_WEAPONS[i] == "red_agm" || AIR_PENDING_WEAPONS[i] == "blue_agm") &&
-          (nativeResolved || resolutionTimeout) && pendingTarget != null &&
+          resolutionTimeout && !nativeResolved && pendingTarget != null &&
           !targetGone && !scriptedContact && !weaponResolved)
       {
          if (weaponPlatform != null &&
@@ -1276,6 +1294,7 @@ end_platform_type
 platform_type RED_ATTACK_AIRCRAFT WSF_PLATFORM
    indestructible
    aux_data
+      string LAST_WEAPON_PLATFORM_NAME = ""
       double MAX_HP = 1
       double CURRENT_HP = 1
       bool IS_INDESTRUCTIBLE = false
@@ -1315,12 +1334,12 @@ platform_type RED_ATTACK_AIRCRAFT WSF_PLATFORM
       end_fusion_method
    end_track_manager
    weapon fox3 MEDIUM_RANGE_RADAR_MISSILE quantity 1 end_weapon # air targets only
-   weapon agm BLUE_GPS_BOMB_1 quantity 1 end_weapon  # land/surface targets only
+   weapon agm MACH_4_MISSILE quantity 1 end_weapon  # land/surface targets only
    processor assessment WSF_UPLINK_PROCESSOR end_processor
    script_variables
       double attack_timer = 0;
       double FOX3_FIRE_RANGE_M = 40000;
-      double AGM_FIRE_RANGE_M = 40000;
+      double AGM_FIRE_RANGE_M = 45000;
       double AIR_WEAPON_MIN_LAUNCH_ALT_M = 3000.0;
       double ATTACK_ASSESS_SEC = 90;
       double ATTACK_LOITER_TURN_DEG = 3.0;
@@ -1760,6 +1779,7 @@ end_platform_type
 platform_type BLUE_ATTACK_AIRCRAFT WSF_PLATFORM
    indestructible
    aux_data
+      string LAST_WEAPON_PLATFORM_NAME = ""
       double MAX_HP = 1
       double CURRENT_HP = 1
       bool IS_INDESTRUCTIBLE = false
@@ -1799,7 +1819,7 @@ platform_type BLUE_ATTACK_AIRCRAFT WSF_PLATFORM
       end_fusion_method
    end_track_manager
    weapon fox3 MEDIUM_RANGE_RADAR_MISSILE quantity 1 end_weapon # air targets only
-   weapon agm BLUE_GPS_BOMB_1 quantity 1 end_weapon  # land/surface targets only
+   weapon agm MACH_4_MISSILE quantity 1 end_weapon  # land/surface targets only
    processor assessment WSF_UPLINK_PROCESSOR end_processor
    aux_data
       bool BLUE_FIGHTER_ON = true
@@ -1810,7 +1830,7 @@ platform_type BLUE_ATTACK_AIRCRAFT WSF_PLATFORM
       string BLUE_GROUND_ATTACK_TARGET = ""
       bool AT_HOME_BASE = false
       double BLUE_FOX3_RANGE_M = 40000
-      double BLUE_AGM_RANGE_M = 40000
+      double BLUE_AGM_RANGE_M = 45000
       double BLUE_RADAR_TRACK_HOLD_SEC = 10
       double BLUE_WEAPON_SUPPORT_UNTIL = 0
       int CURRENT_AAM = 1
@@ -2061,6 +2081,55 @@ platform_type BLUE_ATTACK_AIRCRAFT WSF_PLATFORM
                     " reason=target_gone target=", targetName);
             PLATFORM.SetAuxData("TASK_STATUS", "BLUE_RTB");
             return;
+         }
+
+         // Reassess immediate self-defense threats while preserving the assigned intercept.
+         // A substantially closer red aircraft inside weapon range may replace the old target.
+         WsfPlatform closerThreat = null;
+         double currentTargetRange = PLATFORM.SlantRangeTo(tgt);
+         double closerThreatRange = currentTargetRange;
+         for (int threatIndex = 0; threatIndex < RED_AIR_TARGET_NAMES.Size(); threatIndex = threatIndex + 1)
+         {
+            WsfPlatform candidateThreat = WsfSimulation.FindPlatform(RED_AIR_TARGET_NAMES[threatIndex]);
+            if (candidateThreat != null && candidateThreat.DamageFactor() < 1.0 &&
+                candidateThreat.Name() != targetName)
+            {
+               bool threatRadarFresh = candidateThreat.AuxDataExists("DETECTED_BY_BLUE_RADAR") &&
+                                        candidateThreat.AuxDataBool("DETECTED_BY_BLUE_RADAR") &&
+                                        candidateThreat.AuxDataExists("BLUE_RADAR_LAST_DETECT_TIME") &&
+                                        TIME_NOW - candidateThreat.AuxDataDouble("BLUE_RADAR_LAST_DETECT_TIME") <=
+                                        PLATFORM.AuxDataDouble("BLUE_RADAR_TRACK_HOLD_SEC");
+               bool threatLocalFresh = FindFreshAirTargetTrack(PLATFORM, candidateThreat.Name(), 2.0).IsValid();
+               bool threatHasPendingMissile = false;
+               for (int threatPendingIndex = 0; threatPendingIndex < AIR_PENDING_TARGETS.Size(); threatPendingIndex = threatPendingIndex + 1)
+               {
+                  if (AIR_PENDING_TARGETS[threatPendingIndex] == candidateThreat.Name())
+                  {
+                     threatHasPendingMissile = true;
+                  }
+               }
+               double candidateThreatRange = PLATFORM.SlantRangeTo(candidateThreat);
+               if ((threatRadarFresh || threatLocalFresh) && !threatHasPendingMissile &&
+                   !IsBlueAirTargetAssigned(candidateThreat.Name(), PLATFORM.Name()) &&
+                   candidateThreatRange <= PLATFORM.AuxDataDouble("BLUE_FOX3_RANGE_M") &&
+                   candidateThreatRange + 5000.0 < closerThreatRange)
+               {
+                  closerThreat = candidateThreat;
+                  closerThreatRange = candidateThreatRange;
+               }
+            }
+         }
+         if (closerThreat != null)
+         {
+            TraceBlueCap(write_str("RETARGET_AIR,", TIME_NOW, ",", PLATFORM.Name(), ",", targetName, "->", closerThreat.Name()));
+            writeln("[BLUE_FIGHTER] RETARGET_AIR T=", TIME_NOW,
+                    " fighter=", PLATFORM.Name(), " old_target=", targetName,
+                    " new_target=", closerThreat.Name(), " old_range=", currentTargetRange,
+                    " new_range=", closerThreatRange);
+            targetName = closerThreat.Name();
+            tgt = closerThreat;
+            PLATFORM.SetAuxData("BLUE_INTERCEPT_TARGET", targetName);
+            PLATFORM.SetAuxData("BLUE_INTERCEPT_START_TIME", TIME_NOW);
          }
 
          bool interceptTrackFresh = tgt.AuxDataExists("DETECTED_BY_BLUE_RADAR") &&
@@ -3076,6 +3145,7 @@ end_platform_type
 platform_type BLUE_SAM_LAUNCHER WSF_PLATFORM
    indestructible
    aux_data
+      string LAST_WEAPON_PLATFORM_NAME = ""
       double MAX_HP = 3
       double CURRENT_HP = 3
       bool IS_INDESTRUCTIBLE = false
@@ -3506,4 +3576,5 @@ platform blue_sam_2 BLUE_SAM_LAUNCHER side blue heading 270 deg position 25:02:5
 platform blue_sam_3 BLUE_SAM_LAUNCHER side blue heading 270 deg position 25:02:27.260n 121:18:25.220e altitude 0 ft agl end_platform
 platform blue_sam_4 BLUE_SAM_LAUNCHER side blue heading 270 deg position 24:52:18.180n 121:11:28.150e altitude 0 ft agl end_platform
 platform blue_sam_5 BLUE_SAM_LAUNCHER side blue heading 270 deg position 24:57:01.430n 121:19:23.510e altitude 0 ft agl end_platform
+
 
