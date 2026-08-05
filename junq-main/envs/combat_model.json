@@ -12,14 +12,6 @@
     "transport",
     "base"
   ],
-  "hit_probability": {
-    "air_to_air": 0.5,
-    "sam_to_air": 0.5,
-    "air_to_air_defense": 0.8,
-    "air_to_ground_force": 0.8,
-    "ground_to_air_defense": 1.0,
-    "ground_to_ground_force": 1.0
-  },
   "damage_per_hit": 1.0,
   "ground_combat": {
     "range_m": 5000.0,

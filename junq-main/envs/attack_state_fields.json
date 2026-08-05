@@ -7,7 +7,7 @@
         "max_weapon_range_m": 45000,
         "max_elapsed_steps": 120,
         "aam_weapon_range_m": 40000,
-        "agm_weapon_range_m": 45000,
+        "agm_weapon_range_m": 926000,
         "agm_horizontal_launch_range_m": 45000,
         "max_formation_spacing_m": 15000,
         "max_group_size": 3

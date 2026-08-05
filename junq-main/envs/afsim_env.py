@@ -405,6 +405,10 @@ class AFSIMIslandEnv(object):
         self.native_decision_ready = False
         self.native_decision_ready_time = 0.0
         self.native_decision_ready_seen = False
+        self._native_restart_pending = False
+        self._native_restart_boundary_time = None
+        self._native_restart_last_send = 0.0
+        self._native_restart_resend_seconds = 0.10
         self.debug_native_decision_pause = str(os.environ.get("AFSIM_DEBUG_NATIVE_PAUSE", "")).lower() in ("1", "true", "yes", "on")
         self.simulation_paused = False
         self.sim_time_window_max_wall_seconds = float(scenario_cfg.get("sim_time_window_max_wall_seconds", 4.0))
@@ -836,10 +840,23 @@ class AFSIMIslandEnv(object):
         self.native_decision_ready = False
         self.native_decision_ready_time = 0.0
         self.native_decision_ready_seen = False
+        self._native_restart_pending = False
+        self._native_restart_boundary_time = None
+        self._native_restart_last_send = 0.0
         self.step_count = 0
         self._next_decision_target_sim_time = None
         self._decision_window_id = 0
         self._decision_window_sim_time = 0.0
+        # A new Mission must not inherit a terminal verdict from the prior one.
+        # Otherwise is_done() returns True at T=0 and produces an empty rollout.
+        self.episode_result = ""
+        self.episode_done_reason = "none"
+        self.final_score_raw = 0.0
+        self.final_score_norm = 0.0
+        self.final_score_unit_count = 0
+        self.final_score_units = []
+        self.final_score_sim_time = 0.0
+        self.final_score_settled = False
         self.platforms = {}
         self._build_platform_registry()
         self._apply_stage_initial_state()
@@ -852,6 +869,15 @@ class AFSIMIslandEnv(object):
         self.ground_detected_targets.clear()
         self.last_reward_events.clear()
         self.last_reward_details.clear()
+    def _send_native_restart(self, boundary_time=None):
+        """Resume one known native pause and arm loss-safe retransmission."""
+        if boundary_time is None:
+            boundary_time = float(self.native_decision_ready_time)
+        self._native_restart_pending = True
+        self._native_restart_boundary_time = float(boundary_time)
+        self._native_restart_last_send = time.monotonic()
+        self._send({"MsgType": "SimRestart"})
+
     def verify_native_decision_pause(self, timeout=None):
         """Prove that the live scenario produces a boundary after SimRestart.
 
@@ -868,7 +894,7 @@ class AFSIMIslandEnv(object):
         previous_boundary = float(self.native_decision_ready_time)
         start_sim_time = float(self._current_sim_time())
         self.native_decision_ready = False
-        self._send({"MsgType": "SimRestart"})
+        self._send_native_restart(previous_boundary)
         self._drain_messages(
             timeout=float(
                 self.native_decision_pause_timeout if timeout is None else timeout
@@ -1699,7 +1725,7 @@ class AFSIMIslandEnv(object):
                 self.native_decision_ready = False
                 if self.debug_native_decision_pause:
                     print("native_pause_resume_sent", self.local_address[1], "attempt", attempt, "sim", self._current_sim_time(), flush=True)
-                self._send({"MsgType": "SimRestart"})
+                self._send_native_restart(float(self.native_decision_ready_time))
                 wait_timeout = self.native_decision_pause_timeout if attempt == 1 else self.native_decision_retry_timeout
                 self._drain_messages(timeout=wait_timeout, until_decision_ready=True)
                 if self.native_decision_ready or self.is_done():
@@ -1887,12 +1913,22 @@ class AFSIMIslandEnv(object):
         self.task_flags["current_attack"] = "ATTACK:{0}".format(target_name)
         return group
 
-    def apply_attack_aircraft_action(self, group_id, aircraft_name, action_id, _force_in_range=False):
+    def apply_attack_aircraft_action(
+        self, group_id, aircraft_name, action_id,
+        _force_in_range=False, _allow_locked_return=False,
+    ):
         action = self.attack_controller.action_specs.get(int(action_id), {})
         pending_fire = self._active_pending_attack_fire(aircraft_name)
         if pending_fire and action.get("name") == "HOLD":
             return True
-        if not self._attack_action_allowed(group_id, aircraft_name, action_id):
+        allow_return = bool(_allow_locked_return and action.get("name") == "RETURN_HOME")
+        # A fresh attack/rejoin decision supersedes any previous fire fallback
+        # and approach watcher for this aircraft. A new fire command, if any,
+        # is registered below after the action is accepted.
+        if action.get("afsim_task") in ("ATTACK_TARGET_SLOT", "ATTACK_REJOIN_FORMATION"):
+            self.pending_attack_fire_commands.pop(aircraft_name, None)
+            self.pending_attack_approaches.pop(aircraft_name, None)
+        if not allow_return and not self._attack_action_allowed(group_id, aircraft_name, action_id):
             self.last_reward_events.append({"type": "attack_action_masked", "reward": -1.0, "platform": aircraft_name})
             return False
         group = self.attack_controller.active_groups.get(group_id)
@@ -1995,7 +2031,7 @@ class AFSIMIslandEnv(object):
             weapon = self.attack_controller._compatible_weapon(target)
             launch_range = (
                 float(self.attack_state_config.get("normalization", {}).get(
-                    "agm_horizontal_launch_range_m", 1000.0
+                    "agm_horizontal_launch_range_m", 45000.0
                 ))
                 if weapon == "agm"
                 else self._attack_weapon_range(target)
@@ -2027,8 +2063,12 @@ class AFSIMIslandEnv(object):
                 ),
             })
         if msg:
+            sent_task = str(msg.get("Task", ""))
+            if sent_task == "ATTACK_MOVE_POINT":
+                # A new movement command supersedes any stale fire fallback.
+                self.pending_attack_fire_commands.pop(aircraft_name, None)
             self._send(msg)
-            if str(msg.get("Task", "")) in ("FIRE_AAM", "FIRE_AGM"):
+            if sent_task in ("FIRE_AAM", "FIRE_AGM"): 
                 now = float(self._current_sim_time())
                 fired_target = str(
                     msg.get("TargetName", target_name or "")
@@ -2132,6 +2172,8 @@ class AFSIMIslandEnv(object):
         if platform is None or platform.role != "attack_aircraft" or not platform.alive:
             return False
         pending = pending or self.pending_attack_fire_commands.get(platform.name, {})
+        # A fire fallback must not leave the old approach watcher active.
+        self.pending_attack_approaches.pop(platform.name, None)
         if pending.get("hold_sent"):
             return True
         self._send(self.attack_controller._build_hold_message(platform))
@@ -2167,6 +2209,9 @@ class AFSIMIslandEnv(object):
     def _maybe_confirm_attack_approach(self, platform):
         """Stop an approach at launch range; firing requires a later decision."""
         if platform is None or not platform.alive:
+            return
+        if str(getattr(platform, "task", "")).upper() == "RETREAT":
+            self.pending_attack_approaches.pop(platform.name, None)
             return
         pending = self.pending_attack_approaches.get(platform.name)
         if not pending:
@@ -2315,6 +2360,9 @@ class AFSIMIslandEnv(object):
         if platform and sent_task == "ATTACK_MOVE_POINT":
             self.pending_attack_returns.pop(aircraft_name, None)
         if platform and sent_task == "RETREAT":
+            # A retreat supersedes any stale attack approach/rejoin watcher.
+            self.pending_attack_approaches.pop(aircraft_name, None)
+            self.pending_attack_rejoins.pop(aircraft_name, None)
             self.pending_attack_returns[aircraft_name] = {
                 "group_id": group_id,
                 "phase": "returning",
@@ -2903,12 +2951,23 @@ class AFSIMIslandEnv(object):
         msg_type = msg.get("MsgType", "")
         if msg_type == "DecisionReady":
             self.last_decision_ready_wall_time = time.monotonic()
-            ready_time = float(msg.get("WallTime", self._current_sim_time()))            # Accept the first boundary even when it is T=0, then ignore
+            ready_time = float(msg.get("WallTime", self._current_sim_time()))
+            # Accept the first boundary even when it is T=0, then ignore
             # duplicate retransmissions from the already-consumed boundary.
             if (not self.native_decision_ready_seen) or ready_time > self.native_decision_ready_time + 1.0e-6:
                 self.native_decision_ready = True
                 self.native_decision_ready_time = ready_time
                 self.native_decision_ready_seen = True
+                self._native_restart_pending = False
+                self._native_restart_boundary_time = None
+            elif (self._native_restart_pending
+                  and self._native_restart_boundary_time is not None
+                  and abs(ready_time - float(self._native_restart_boundary_time)) <= 1.0e-6
+                  and time.monotonic() - self._native_restart_last_send >= self._native_restart_resend_seconds):
+                # The simulator proved it is still paused at this boundary;
+                # retry only then, so a delayed command cannot skip a boundary.
+                self._native_restart_last_send = time.monotonic()
+                self._send({"MsgType": "SimRestart"})
             return
         if msg_type == "MoveUpdateBatch":
             batch_time = msg.get("WallTime")
@@ -5670,7 +5729,7 @@ class AFSIMIslandEnv(object):
             # about 3.16 km slant range.
             ground_range = float(
                 self.attack_state_config.get("normalization", {}).get(
-                    "agm_horizontal_launch_range_m", 1000.0
+                    "agm_horizontal_launch_range_m", 45000.0
                 )
             )
             horizontal, _ = self._distance_and_bearing(
@@ -5688,7 +5747,7 @@ class AFSIMIslandEnv(object):
             )
         return float(slant_distance) <= self._attack_weapon_range(target)
 
-    def _attack_weapon_range(self, target, fallback=60000.0):
+    def _attack_weapon_range(self, target, fallback=926000.0):
         weapon = self.attack_controller._compatible_weapon(target)
         norm_cfg = self.attack_state_config.get("normalization", {})
         key = "aam_weapon_range_m" if weapon == "fox3" else "agm_weapon_range_m"
@@ -6465,3 +6524,4 @@ class AFSIMIslandEnv(object):
 
         self.episode_done_reason = "none"
         return False
+
